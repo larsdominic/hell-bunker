@@ -43,6 +43,7 @@
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   #view {
     display: block;
@@ -71,14 +72,16 @@
   .overlay {
     position: absolute;
     inset: 0;
-    display: grid;
-    place-items: center;
+    display: flex;
+    overflow-y: auto;
     padding: 16px;
     background: color-mix(in srgb, var(--void) 68%, transparent);
   }
   .panel {
+    margin: auto; /* centers, but stays scrollable when taller than the stage */
     max-width: 30rem;
     width: 100%;
+    box-sizing: border-box;
     display: grid;
     gap: 14px;
     padding: 22px 24px;
@@ -203,9 +206,31 @@
     background: color-mix(in srgb, var(--bone) 35%, transparent);
   }
 
+  .pause-btn {
+    position: absolute;
+    left: 10px; top: 10px;
+    width: 40px; height: 40px;
+    border: 1px solid color-mix(in srgb, var(--bone) 40%, transparent);
+    background: color-mix(in srgb, var(--void) 55%, transparent);
+    color: var(--bone);
+    font: 600 14px/1 var(--ui);
+    letter-spacing: .1em;
+  }
+  .panel .rotate-tip { color: var(--ember); font-size: 13px; }
+
   @media (max-width: 520px) {
     .stat b { font-size: 1.5rem; }
     .hint { display: none; }
+  }
+  @media (orientation: landscape) {
+    .rotate-tip { display: none; }
+  }
+  @media (max-height: 480px) {
+    .panel { gap: 8px; padding: 14px 18px; }
+    .panel h1 { font-size: 2rem; }
+    .panel p { font-size: 13px; line-height: 1.4; }
+    .hud { padding: 4px 12px; }
+    .stat b { font-size: 1.3rem; }
   }
 </style>
 
@@ -215,6 +240,7 @@
   <div class="touch-ui" id="touch-ui" hidden>
     <div class="joy" id="joy" hidden><i id="knob"></i></div>
     <button class="fire-btn" id="fire-btn" type="button">Fire</button>
+    <button class="pause-btn" id="pause-btn" type="button" aria-label="Pause">II</button>
   </div>
   <div class="overlay" id="overlay">
     <div class="panel">
@@ -233,6 +259,7 @@
         <dt>Turn</dt><dd>Drag with your right thumb</dd>
         <dt>Fire</dt><dd>Hold the Fire button</dd>
       </dl>
+      <p class="rotate-tip" id="rotate-tip" hidden>Turn your phone sideways for a bigger view.</p>
     </div>
   </div>
 </div>
@@ -853,7 +880,11 @@
   let mouseDX = 0, touchTurn = 0;
   const touchMove = { x: 0, y: 0 };
   const coarse = matchMedia("(pointer: coarse)").matches;
-  if (coarse) { $("touch-ui").hidden = false; $("keys-desktop").hidden = true; $("keys-touch").hidden = false; }
+  if (coarse) {
+    $("touch-ui").hidden = false; $("keys-desktop").hidden = true; $("keys-touch").hidden = false;
+    $("rotate-tip").hidden = false; document.querySelector(".hint").hidden = true;
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
 
   function lockPointer() {
     if (coarse || !cv.requestPointerLock) return;
@@ -882,7 +913,7 @@
   const stage = $("stage"), joy = $("joy"), knob = $("knob"), fireBtn = $("fire-btn");
   const touch = { move: null, look: null, ox: 0, oy: 0, lx: 0 };
   stage.addEventListener("pointerdown", e => {
-    if (e.pointerType !== "touch" || !running || e.target === fireBtn) return;
+    if (e.pointerType !== "touch" || !running || e.target.closest("button")) return;
     const r = stage.getBoundingClientRect();
     if (e.clientX - r.left < r.width / 2 && touch.move === null) {
       touch.move = e.pointerId; touch.ox = e.clientX; touch.oy = e.clientY;
@@ -909,9 +940,15 @@
   };
   stage.addEventListener("pointerup", endTouch);
   stage.addEventListener("pointercancel", endTouch);
-  fireBtn.addEventListener("pointerdown", e => { e.preventDefault(); if (running) trigger = true; });
-  fireBtn.addEventListener("pointerup", () => { trigger = false; });
-  fireBtn.addEventListener("pointercancel", () => { trigger = false; });
+  // Capture the pointer so lifting the thumb anywhere (even off the button) stops firing
+  fireBtn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    fireBtn.setPointerCapture(e.pointerId);
+    if (running) trigger = true;
+  });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) fireBtn.addEventListener(ev, () => { trigger = false; });
+  fireBtn.addEventListener("contextmenu", e => e.preventDefault());
+  $("pause-btn").addEventListener("click", pause);
 
   // ---------- Sound (starts after the first click) ----------
   let ac = null;
