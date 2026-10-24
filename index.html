@@ -605,64 +605,6 @@
   }
   const BLASTER_LEVELS = [0.6, 0.7, 0.8, 0.9, 1];
 
-  // A cartoon poop: three stacked swirls with a curl on top, eyes and a mouth. sq = squash (<1) / stretch (>1).
-  // The canvas has room above for the flies.
-  function drawPoop(g, w, h, { body, sq, angry, flies, fliesAt, crown }) {
-    const bh = body * sq, bw = w * 0.9 / Math.sqrt(sq), cx = w / 2, base = h;
-    const tiers = [[0.5, 0.3], [0.38, 0.27], [0.25, 0.24]];
-    let y = base;
-    tiers.forEach(([rw, th], i) => {
-      const ry = bh * th / 2 + 1, rx = bw * rw;
-      y -= bh * th * (i ? 0.78 : 0.62);
-      blob(g, cx, y, rx, ry, "#5e3511");
-      blob(g, cx - rx * 0.08, y - ry * 0.12, rx * 0.94, ry * 0.86, "#7a4a1e");
-      blob(g, cx - rx * 0.4, y - ry * 0.4, rx * 0.32, ry * 0.26, "#a06a36");   // shine
-    });
-    // curl on top
-    g.strokeStyle = "#7a4a1e"; g.lineWidth = bw * 0.09; g.lineCap = "round";
-    g.beginPath(); g.moveTo(cx - bw * 0.08, y - bh * 0.08); g.quadraticCurveTo(cx + bw * 0.12, y - bh * 0.3, cx - bw * 0.02, y - bh * 0.32); g.stroke();
-    // face on the middle tier
-    const fy = base - bh * 0.42, ex = bw * 0.13, er = bw * 0.085;
-    for (const s of [-1, 1]) {
-      blob(g, cx + s * ex, fy, er, er * 1.15, "#ffffff");
-      blob(g, cx + s * ex + er * 0.25, fy + er * 0.15, er * 0.5, er * 0.6, "#1a1a1a");
-      if (angry) {
-        g.strokeStyle = "#2a1505"; g.lineWidth = bw * 0.035;
-        g.beginPath(); g.moveTo(cx + s * ex * 2.1, fy - er * 1.9); g.lineTo(cx + s * ex * 0.4, fy - er * 1.1); g.stroke();
-      }
-    }
-    g.strokeStyle = "#2a1505"; g.lineWidth = bw * 0.03;
-    g.beginPath();
-    if (angry) { g.moveTo(cx - ex, fy + er * 2.4); g.quadraticCurveTo(cx, fy + er * 1.6, cx + ex, fy + er * 2.4); }
-    else g.arc(cx, fy + er * 1.3, ex * 0.9, Math.PI * 0.15, Math.PI * 0.85);
-    g.stroke();
-    if (crown) {
-      const ty = y - bh * 0.3, cw = bw * 0.42;
-      g.fillStyle = "#ffd23a";
-      g.beginPath(); g.moveTo(cx - cw, ty); g.lineTo(cx - cw, ty - cw * 0.55); g.lineTo(cx - cw * 0.5, ty - cw * 0.2);
-      g.lineTo(cx, ty - cw * 0.75); g.lineTo(cx + cw * 0.5, ty - cw * 0.2); g.lineTo(cx + cw, ty - cw * 0.55); g.lineTo(cx + cw, ty); g.fill();
-      g.fillStyle = "#e0a820"; g.fillRect(cx - cw, ty - cw * 0.12, cw * 2, cw * 0.12);
-      for (const [x, c] of [[-0.55, "#d8463a"], [0, "#2f7dff"], [0.55, "#3aa257"]]) blob(g, cx + x * cw, ty - cw * 0.25, cw * 0.1, cw * 0.1, c);
-    }
-    // flies buzzing round the top
-    for (let i = 0; i < flies; i++) {
-      const a = fliesAt + i * Math.PI * 2 / flies, fx = cx + Math.cos(a) * bw * 0.45, fy2 = base - bh - h * 0.06 + Math.sin(a * 2) * h * 0.04;
-      blob(g, fx - 2, fy2 - 2, 2.2, 1.4, "rgba(220,235,255,.95)"); blob(g, fx + 2, fy2 - 2, 2.2, 1.4, "rgba(220,235,255,.95)");
-      blob(g, fx, fy2, 2, 1.6, "#1a1a1a");
-    }
-  }
-  function tint(src, col) {
-    const c = canvas(src.w, src.h), g = c.getContext("2d"), id = g.createImageData(src.w, src.h);
-    new Uint32Array(id.data.buffer).set(src.px); g.putImageData(id, 0, 0);
-    g.globalCompositeOperation = "source-atop"; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height);
-    return pixels(c, src.ox, src.oy, src.k);
-  }
-  // Frames: rest, squash, stretch (each with the flies in a different spot) + the white hit flash
-  function poopSet(wu, hu, look) {
-    const frames = [[1, 0], [0.82, 2.1], [1.15, 4.2]].map(([sq, fa]) =>
-      sprite(wu, hu, (g, w, h) => drawPoop(g, w, h, { ...look, body: h * look.bodyK, sq, fliesAt: fa })));
-    return { frames, hit: tint(frames[0], "rgba(255,255,255,.75)") };
-  }
   function drawCloud(g, w, h, i) {
     const r = rng(3 + i);
     for (let n = 0; n < 9; n++) blob(g, w * (0.25 + r() * 0.5), h * (0.3 + r() * 0.45), w * (0.14 + r() * 0.1), h * (0.14 + r() * 0.1), pick(r, ["#8fd14f", "#a6dd5c", "#7cc043"]));
@@ -720,10 +662,6 @@
         cloud: [0, 1].map(i => sprite(0.5, 0.42, (g, w, h) => drawCloud(g, w, h, i))),
         poof: [0, 1, 2].map(i => sprite(0.7, 0.6, (g, w, h) => drawPoof(g, w, h, i))),
         flowers: sprite(0.45, 0.22, drawFlowerClump),
-      },
-      poops: {
-        small: poopSet(0.5, 0.6, { bodyK: 0.75, angry: false, flies: 2 }),
-        big: poopSet(0.85, 0.98, { bodyK: 0.82, angry: true, flies: 3 }),
       },
       blaster: BLASTER_LEVELS.map(v => shadeCanvas(blaster, v)),
     };
@@ -914,11 +852,159 @@
     }
   }
 
+  // ---------- 3D poops ----------
+  // Each poop is a handful of ellipsoids, ray-traced per pixel inside its screen box and depth-tested against
+  // the walls. Parts: [x, y, z, rx, ry, rz, colour, shine, roll] in "small poop" units (0.45 tall); +y faces the
+  // player, so the eyes always look at you. Lit by the sun, with a soft shadow on the ground.
+  const BROWN = [122, 74, 30], WHITE = [250, 250, 245], BLACK = [20, 16, 14], DARK = [58, 26, 8];
+  const GOLD = [255, 200, 40], RED = [220, 40, 50];
+  const BODY = [
+    [0, 0, 0.085, 0.24, 0.24, 0.095, BROWN, 0.3], [0, 0, 0.2, 0.18, 0.18, 0.085, BROWN, 0.3],
+    [0, 0, 0.3, 0.12, 0.12, 0.075, BROWN, 0.3], [-0.02, 0, 0.385, 0.055, 0.055, 0.06, BROWN, 0.3],
+    [0.025, 0.01, 0.43, 0.035, 0.035, 0.032, BROWN, 0.3],
+    [-0.065, 0.135, 0.225, 0.048, 0.048, 0.052, WHITE, 0.6], [0.065, 0.135, 0.225, 0.048, 0.048, 0.052, WHITE, 0.6],
+    [-0.06, 0.178, 0.218, 0.022, 0.018, 0.026, BLACK, 0.8], [0.06, 0.178, 0.218, 0.022, 0.018, 0.026, BLACK, 0.8],
+    [0, 0.198, 0.135, 0.055, 0.02, 0.016, DARK, 0.1],
+  ];
+  const BROWS = [[-0.07, 0.15, 0.29, 0.05, 0.02, 0.014, DARK, 0.1, 0.45], [0.07, 0.15, 0.29, 0.05, 0.02, 0.014, DARK, 0.1, -0.45]];
+  const CROWN = [
+    [0, 0, 0.405, 0.085, 0.085, 0.024, GOLD, 0.7], [0, 0.085, 0.405, 0.016, 0.01, 0.016, RED, 0.8], [0, -0.13, 0.2, 0.2, 0.06, 0.17, RED, 0.15],
+    ...[0, 1, 2, 3, 4].map(i => [Math.cos(i * 1.2566) * 0.07, Math.sin(i * 1.2566) * 0.07, 0.44, 0.02, 0.02, 0.026, GOLD, 0.7]),
+  ];
+  const MODELS = {
+    small: { scale: 1, parts: BODY, flies: 2 },
+    big: { scale: 1.78, parts: [...BODY, ...BROWS], flies: 3 },
+    king: { scale: 3.55, parts: [...BODY, ...BROWS, ...CROWN], flies: 4 },
+  };
+  const SUN3 = (() => { const v = [SUN[0] * 0.67, SUN[1] * 0.67, 0.74], l = Math.hypot(...v); return v.map(c => c / l); })();
+  const SHADOW_DX = -SUN3[0] / SUN3[2], SHADOW_DY = -SUN3[1] / SUN3[2];
+
+  // World-space ellipsoids for this frame: centre, and the three axes divided by the radii
+  function modelParts(s) {
+    const m = MODELS[s.model], k = m.scale, sq = s.sq || 1, h = 1 / Math.sqrt(sq);
+    const fa = Math.atan2(py - s.y, px - s.x), fx = Math.cos(fa), fy = Math.sin(fa), rx = fy, ry = -fx;
+    const parts = m.parts.map(([x, y, z, a, b, c, col, shine, roll = 0]) => {
+      const cr = Math.cos(roll), sr = Math.sin(roll);
+      // local x axis rolled about the forward axis (for the angry brows)
+      const ex = [rx * cr, ry * cr, sr], ez = [-rx * sr, -ry * sr, cr], ey = [fx, fy, 0];
+      const A = a * k * h, B = b * k * h, C = c * k * sq;
+      return {
+        cx: s.x + (x * rx + y * fx) * k * h, cy: s.y + (x * ry + y * fy) * k * h, cz: s.z + z * k * sq,
+        u: ex.map(v => v / A), v: ey.map(v => v / B), w: ez.map(v => v / C), col, shine, rmax: Math.max(A, B, C),
+      };
+    });
+    for (let i = 0; i < m.flies; i++) {
+      const a = s.anim * 5 + i * Math.PI * 2 / m.flies, r = 0.2 * k, z = s.z + (0.48 + Math.sin(a * 2) * 0.04) * k;
+      parts.push({ cx: s.x + Math.cos(a) * r, cy: s.y + Math.sin(a) * r, cz: z, u: [1 / 0.014, 0, 0], v: [0, 1 / 0.014, 0], w: [0, 0, 1 / 0.014], col: BLACK, shine: 0.3, rmax: 0.014 });
+    }
+    return parts;
+  }
+
+  function renderModel(s) {
+    const m = MODELS[s.model], k = m.scale, sx = s.x - px, sy = s.y - py;
+    const invDet = 1 / (plx * dy - dx * ply);
+    const tX = invDet * (dy * sx - dx * sy), tY = invDet * (-ply * sx + plx * sy);
+    const rad = 0.3 * k + 0.05, zc = s.z + 0.25 * k;     // bounding sphere
+    if (tY + rad <= 0.2) return;
+    const parts = modelParts(s);
+    const l = lightAt(s.x, s.y), lit = (l[0] + l[1] + l[2]) / 3;
+
+    // Soft round shadow on the grass, cast away from the sun
+    const shx = s.x + SHADOW_DX * (s.z + 0.15 * k), shy = s.y + SHADOW_DY * (s.z + 0.15 * k), shr = 0.26 * k;
+    shadeGround(shx, shy, shr);
+
+    const tn = Math.max(0.2, tY - rad), cxs = (W / 2) * (1 + tX / tY), span = rad * VS / tn;
+    const x0 = Math.max(0, Math.floor(cxs - span)), x1 = Math.min(W, Math.ceil(cxs + span));
+    const y0 = Math.max(0, Math.floor(H / 2 - (zc + rad - EYE) * VS / tn)), y1 = Math.min(H, Math.ceil(H / 2 - (zc - rad - EYE) * VS / tn));
+    const flash = s.flash > 0 ? 0.6 : 0, n = parts.length;
+    // The ray origin is the eye for every pixel, so each part's origin terms are per frame; the ray direction's
+    // x/y share is per column and its z share per row
+    // ...and each part only needs testing inside its own screen box (from its bounding sphere)
+    const O = new Float64Array(n * 4), D = new Float64Array(n * 3), box = new Float64Array(n * 4), act = new Int32Array(n);
+    parts.forEach((p, i) => {
+      const ox = px - p.cx, oy = py - p.cy, oz = EYE - p.cz, u = p.u, v = p.v, w = p.w;
+      const o0 = ox * u[0] + oy * u[1] + oz * u[2], o1 = ox * v[0] + oy * v[1] + oz * v[2], o2 = ox * w[0] + oy * w[1] + oz * w[2];
+      O[i * 4] = o0; O[i * 4 + 1] = o1; O[i * 4 + 2] = o2; O[i * 4 + 3] = o0 * o0 + o1 * o1 + o2 * o2 - 1;
+      const qx = p.cx - px, qy = p.cy - py, qX = invDet * (dy * qx - dx * qy), qY = invDet * (-ply * qx + plx * qy);
+      const r = p.rmax * 1.05, tn = qY - r;
+      if (tn <= 0.2) { box[i * 4] = -1e9; box[i * 4 + 1] = 1e9; box[i * 4 + 2] = -1e9; box[i * 4 + 3] = 1e9; return; }
+      const c = (W / 2) * (1 + qX / qY), sp = r * VS / tn;
+      box[i * 4] = c - sp; box[i * 4 + 1] = c + sp;
+      box[i * 4 + 2] = H / 2 - (p.cz + r - EYE) * VS / tn; box[i * 4 + 3] = H / 2 - (p.cz - r - EYE) * VS / tn;
+    });
+    for (let x = x0; x < x1; x++) {
+      const cam = 2 * x / W - 1, rdx = dx + plx * cam, rdy = dy + ply * cam, zlim = zbuf[x];
+      let na = 0;
+      for (let i = 0; i < n; i++) {
+        if (x < box[i * 4] || x > box[i * 4 + 1]) continue;
+        act[na++] = i;
+        const p = parts[i];
+        D[i * 3] = rdx * p.u[0] + rdy * p.u[1]; D[i * 3 + 1] = rdx * p.v[0] + rdy * p.v[1]; D[i * 3 + 2] = rdx * p.w[0] + rdy * p.w[1];
+      }
+      if (!na) continue;
+      for (let y = y0; y < y1; y++) {
+        const rdz = (H / 2 - y) / VS;
+        let best = zlim, hi = -1, h0 = 0, h1 = 0, h2 = 0;
+        for (let j = 0; j < na; j++) {
+          const i = act[j];
+          if (y < box[i * 4 + 2] || y > box[i * 4 + 3]) continue;
+          const p = parts[i], o0 = O[i * 4], o1 = O[i * 4 + 1], o2 = O[i * 4 + 2];
+          const d0 = D[i * 3] + rdz * p.u[2], d1 = D[i * 3 + 1] + rdz * p.v[2], d2 = D[i * 3 + 2] + rdz * p.w[2];
+          const B = o0 * d0 + o1 * d1 + o2 * d2;
+          if (B >= 0) continue;                                   // pointing away
+          const A = d0 * d0 + d1 * d1 + d2 * d2, disc = B * B - A * O[i * 4 + 3];
+          if (disc < 0) continue;
+          const t = (-B - Math.sqrt(disc)) / A;
+          if (t <= 0.05 || t >= best) continue;
+          best = t; hi = i; h0 = o0 + t * d0; h1 = o1 + t * d1; h2 = o2 + t * d2;
+        }
+        if (hi < 0) continue;
+        const hit = parts[hi], hn = [h0, h1, h2];
+        // Normal = sum of the axes weighted by the unit-sphere hit point
+        const u = hit.u, v = hit.v, w = hit.w;
+        let nx = u[0] * hn[0] + v[0] * hn[1] + w[0] * hn[2], ny = u[1] * hn[0] + v[1] * hn[1] + w[1] * hn[2], nz = u[2] * hn[0] + v[2] * hn[1] + w[2] * hn[2];
+        const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+        const diff = Math.max(0, nx * SUN3[0] + ny * SUN3[1] + nz * SUN3[2]);
+        // Shine: half-vector between the sun and the eye
+        const vl = Math.hypot(rdx, rdy, rdz), hx = SUN3[0] - rdx / vl, hy = SUN3[1] - rdy / vl, hz = SUN3[2] - rdz / vl, hl = Math.hypot(hx, hy, hz);
+        const spec = hit.shine * Math.max(0, (nx * hx + ny * hy + nz * hz) / hl) ** 28 * lit;
+        const f = fog(best), kd = (0.42 + 0.72 * diff) * lit * f, ks = spec * 255 * f;
+        const hz2 = 1 - f, c = hit.col;
+        let r = c[0] * kd + ks + HAZE[0] * hz2, g = c[1] * kd + ks + HAZE[1] * hz2, b = c[2] * kd + ks + HAZE[2] * hz2;
+        if (flash) { r += (255 - r) * flash; g += (255 - g) * flash; b += (255 - b) * flash; }
+        if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+        buf[y * W + x] = 0xFF000000 | (b << 16) | (g << 8) | r;
+      }
+    }
+  }
+
+  // Darken the floor inside a soft-edged circle (a thing's shadow), where the floor is what you see
+  function shadeGround(gx, gy, r) {
+    const sx = gx - px, sy = gy - py, invDet = 1 / (plx * dy - dx * ply);
+    const tX = invDet * (dy * sx - dx * sy), tY = invDet * (-ply * sx + plx * sy);
+    if (tY - r <= 0.25) return;
+    const cxs = (W / 2) * (1 + tX / tY), span = r * VS / (tY - r);
+    const x0 = Math.max(0, Math.floor(cxs - span)), x1 = Math.min(W, Math.ceil(cxs + span));
+    const y0 = Math.max(H / 2 + 1, Math.floor(H / 2 + EYE * VS / (tY + r))), y1 = Math.min(H, Math.ceil(H / 2 + EYE * VS / (tY - r)));
+    for (let x = x0; x < x1; x++) {
+      const cam = 2 * x / W - 1, rdx = dx + plx * cam, rdy = dy + ply * cam;
+      for (let y = Math.max(y0, wallBot[x]); y < y1; y++) {
+        const t = EYE * VS / (y - H / 2 + 0.5);
+        if (t >= zbuf[x]) continue;
+        const d = Math.hypot(px + rdx * t - gx, py + rdy * t - gy) / r;
+        if (d >= 1) continue;
+        const k = 1 - 0.3 * Math.min(1, (1 - d) * 3), i = y * W + x, c = buf[i];
+        buf[i] = 0xFF000000 | ((((c >> 16) & 255) * k) << 16) | ((((c >> 8) & 255) * k) << 8) | ((c & 255) * k);
+      }
+    }
+  }
+
   function renderSprites() {
     for (const s of sprites) s.d = (px - s.x) ** 2 + (py - s.y) ** 2;
     const list = sprites.slice().sort((a, b) => b.d - a.d);
     const invDet = 1 / (plx * dy - dx * ply);
     for (const s of list) {
+      if (s.model) { renderModel(s); continue; }
       if (!s.tex) continue;
       const sx = s.x - px, sy = s.y - py;
       const tX = invDet * (dy * sx - dx * sy), tY = invDet * (-ply * sx + plx * sy);
@@ -1027,7 +1113,7 @@
 
   function spawnPoop(kind, x, y, awake = false) {
     const p = { kind, x, y, z: 0, hp: POOP[kind].hp, awake, anim: R() * 3, cool: kind === "big" ? 1 + R() : 0, flash: 0, knockT: 0, kx: 0, ky: 0 };
-    p.tex = ART.poops[kind].frames[0];
+    p.model = kind; p.sq = 1; p.tex = null;
     sprites.push(p);
     return p;
   }
@@ -1069,9 +1155,10 @@
         p.cool = 2.5 + R();
       }
     }
-    p.z = moving ? Math.abs(Math.sin(p.anim * 7)) * def.hop : 0;
-    const set = ART.poops[p.kind];
-    p.tex = p.flash > 0 ? set.hit : !moving ? set.frames[0] : p.z > def.hop * 0.6 ? set.frames[2] : p.z < def.hop * 0.12 ? set.frames[1] : set.frames[0];
+    // Hop: stretch going up, squash on landing
+    const hop = Math.abs(Math.sin(p.anim * 7));
+    p.z = moving ? hop * def.hop : 0;
+    p.sq = moving ? 0.84 + hop * 0.3 : 1;
   }
 
   function throwCloud(p, a, stinkAmt) {
