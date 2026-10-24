@@ -762,7 +762,7 @@
   function view(x, y, a) { px = x; py = y; dx = Math.cos(a); dy = Math.sin(a); plx = -dy * PLANE; ply = dx * PLANE; }
   function init() {
     view(...START);
-    rolls = 30;
+    rolls = 30; kingOut = false;
     stink = splat = recoil = bob = moveAmt = cooldown = msgT = elapsed = 0;
     easy = $("easy").checked;
     over = null;
@@ -863,7 +863,7 @@
     [0, 0, 0.3, 0.12, 0.12, 0.075, BROWN, 0.3], [-0.02, 0, 0.385, 0.055, 0.055, 0.06, BROWN, 0.3],
     [0.025, 0.01, 0.43, 0.035, 0.035, 0.032, BROWN, 0.3],
     [-0.065, 0.135, 0.225, 0.048, 0.048, 0.052, WHITE, 0.6], [0.065, 0.135, 0.225, 0.048, 0.048, 0.052, WHITE, 0.6],
-    [-0.06, 0.178, 0.218, 0.022, 0.018, 0.026, BLACK, 0.8], [0.06, 0.178, 0.218, 0.022, 0.018, 0.026, BLACK, 0.8],
+    [-0.06, 0.178, 0.218, 0.022, 0.018, 0.026, BLACK, 0.35], [0.06, 0.178, 0.218, 0.022, 0.018, 0.026, BLACK, 0.35],
     [0, 0.198, 0.135, 0.055, 0.02, 0.016, DARK, 0.1],
   ];
   const BROWS = [[-0.07, 0.15, 0.29, 0.05, 0.02, 0.014, DARK, 0.1, 0.45], [0.07, 0.15, 0.29, 0.05, 0.02, 0.014, DARK, 0.1, -0.45]];
@@ -968,7 +968,8 @@
         // Shine: half-vector between the sun and the eye
         const vl = Math.hypot(rdx, rdy, rdz), hx = SUN3[0] - rdx / vl, hy = SUN3[1] - rdy / vl, hz = SUN3[2] - rdz / vl, hl = Math.hypot(hx, hy, hz);
         const spec = hit.shine * Math.max(0, (nx * hx + ny * hy + nz * hz) / hl) ** 28 * lit;
-        const f = fog(best), kd = (0.42 + 0.72 * diff) * lit * f, ks = spec * 255 * f;
+        // eye whites stay bright even with the sun behind, so the pupils always read
+        const f = fog(best), kd = Math.max(hit.col === WHITE ? 0.85 : 0, (0.42 + 0.72 * diff) * lit) * f, ks = spec * 255 * f;
         const hz2 = 1 - f, c = hit.col;
         let r = c[0] * kd + ks + HAZE[0] * hz2, g = c[1] * kd + ks + HAZE[1] * hz2, b = c[2] * kd + ks + HAZE[2] * hz2;
         if (flash) { r += (255 - r) * flash; g += (255 - g) * flash; b += (255 - b) * flash; }
@@ -1108,11 +1109,25 @@
   const POOP = {
     small: { hp: 1, speed: 1.6, easySpeed: 1.1, hop: 0.25, hitR: 0.45, stink: 12 },
     big:   { hp: 2, speed: 0.9, easySpeed: 0.6, hop: 0.15, hitR: 0.65, stink: 10 },
+    king:  { hp: 20, easyHp: 14, speed: 0.8, easySpeed: 0.8, hop: 0.1, hitR: 1.0, stink: 12, contact: 20 },
   };
-  const poopsLeft = () => sprites.reduce((n, s) => n + (POOP[s.kind] && !s.gone ? 1 : 0), 0);
+  const poopsLeft = () => sprites.reduce((n, s) => n + ((s.kind === "small" || s.kind === "big") && !s.gone ? 1 : 0), 0);
+  let kingOut = false;
+
+  // Once the park is clean, King Poop comes out of the toilet block
+  function spawnKing() {
+    kingOut = true;
+    const [kx, ky] = KING_SPAWN;
+    if (Math.hypot(px - kx, py - ky) < 1.2) { px = kx; py = ky + 3; }   // don't appear on top of the player
+    const k = spawnPoop("king", kx, ky, true);
+    k.fan = 1.5;
+    setMsg("King Poop is coming out of the toilets!");
+    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, f, 0.16, "square", 0.07), i * 130));
+  }
 
   function spawnPoop(kind, x, y, awake = false) {
-    const p = { kind, x, y, z: 0, hp: POOP[kind].hp, awake, anim: R() * 3, cool: kind === "big" ? 1 + R() : 0, flash: 0, knockT: 0, kx: 0, ky: 0 };
+    const def = POOP[kind];
+    const p = { kind, x, y, z: 0, hp: easy && def.easyHp ? def.easyHp : def.hp, awake, anim: R() * 3, cool: kind === "big" ? 1 + R() : 0, flash: 0, knockT: 0, kx: 0, ky: 0 };
     p.model = kind; p.sq = 1; p.tex = null;
     sprites.push(p);
     return p;
@@ -1124,6 +1139,10 @@
     effect("poof", p.x, p.y, 0);
     sprites.push({ kind: "flowers", x: p.x, y: p.y, z: 0, tex: ART.sprites.flowers });
     sfxPop();
+    if (p.kind === "king") {
+      for (let i = 0; i < 5; i++) effect("poof", p.x + Math.cos(i * 1.26) * 0.7, p.y + Math.sin(i * 1.26) * 0.7, 0.3 + (i % 2) * 0.4);
+      end("win");
+    }
   }
   function addStink(n) {
     if (over) return;
@@ -1153,6 +1172,16 @@
       } else if (p.kind === "big" && p.cool <= 0 && d < 9 && los(p.x, p.y, px, py)) {
         throwCloud(p, Math.atan2(ey, ex), easy ? def.stink / 2 : def.stink);
         p.cool = 2.5 + R();
+      } else if (p.kind === "king") {
+        if (d < 1.1 && p.cool <= 0) {
+          addStink(easy ? def.contact / 2 : def.contact); splat = 1; sfxSquelch();
+          p.kx = -ex / d; p.ky = -ey / d; p.knockT = 0.6; p.cool = 1.2;
+        }
+        if ((p.fan -= dt) <= 0 && d < 12 && los(p.x, p.y, px, py)) {
+          const a = Math.atan2(ey, ex);
+          for (const o of [-0.3, 0, 0.3]) throwCloud(p, a + o, easy ? def.stink / 2 : def.stink);
+          p.fan = 2.5;
+        }
       }
     }
     // Hop: stretch going up, squash on landing
@@ -1222,6 +1251,7 @@
       }
     }
     if (sprites.some(s => s.gone)) sprites = sprites.filter(s => !s.gone);
+    if (!kingOut && !over && poopsLeft() === 0) spawnKing();
   }
 
   // ---------- HUD & overlay ----------
@@ -1254,6 +1284,7 @@
     over = kind; running = false; trigger = false; keys.clear();
     if (document.pointerLockElement) document.exitPointerLock();
     const t = `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}`;
+    if (kind === "win") showOverlay("Hooray!", "Park clean!", `All ${POOPS.length} poops and King Poop cleared in ${t}, with ${Math.round(stink)}% stink.`, "Play again");
     if (kind === "lose") showOverlay("Pee-yew!", "Too stinky!", `${POOPS.length - poopsLeft()} of ${POOPS.length} poops cleaned after ${t}. Grab air fresheners and keep moving!`, "Try again");
   }
   function pause() {
@@ -1412,7 +1443,9 @@
     get state() {
       const kinds = Object.fromEntries(["roll", "tail", "puff", "small", "big", "cloud", "poof", "flowers", "king", "tp", "fresh", "dog"].map(k => [k, 0]));
       for (const s of sprites) kinds[s.kind] = (kinds[s.kind] || 0) + 1;
+      const k = sprites.find(s => s.kind === "king" && !s.gone);
       return { ready, running, over, px, py, angle: Math.atan2(dy, dx), rolls, stink, splat, easy, poopsLeft: poopsLeft(), flowers: kinds.flowers, kinds, msg: hud.msg.textContent,
+        king: k ? { hp: k.hp, x: k.x, y: k.y } : null,
         props: sprites.filter(s => PROPS.some(p => p[0] === s.kind)).length };
     },
     find: kind => sprites.filter(s => s.kind === kind).map(({ x, y, z }) => ({ x, y, z })),
