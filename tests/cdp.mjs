@@ -64,6 +64,8 @@ export async function withPage({ url, w = 640, h = 400, touch = false }, fn) {
           const p = document.getElementById("pick-${kid}"); if (p) p.click();
           const e = document.getElementById("easy"); if (e && e.checked !== ${easy}) e.click();
           document.getElementById("ov-btn").click();
+          const skip = document.getElementById("skip-intro");
+          if (skip && !document.getElementById("intro").hidden) skip.click();   // checks start straight in 3D
           if (__pr3d.hold) __pr3d.hold(true);   // only tick() moves the game, so checks are repeatable
         })()`);
         await sleep(50);
