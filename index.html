@@ -1587,11 +1587,11 @@
     $("ov-btn").focus({ preventScroll: true });
   }
   function end(kind) {
-    over = kind; running = false; trigger = false; keys.clear();
+    over = kind; running = false; trigger = false; keys.clear(); setMsg("");
     if (document.pointerLockElement) document.exitPointerLock();
     const t = `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}`;
     if (kind === "win") showOverlay("Hooray!", "Park clean!", `All ${POOPS.length} poops and King Poop cleared in ${t}, with ${Math.round(stink)}% stink.`, "Play again");
-    if (kind === "lose") showOverlay("Pee-yew!", "Too stinky!", `${POOPS.length - poopsLeft()} of ${POOPS.length} poops cleaned after ${t}. Grab air fresheners and keep moving!`, "Try again");
+    if (kind === "lose") showOverlay("Pee-yew!", "Too stinky!", `${Math.max(0, POOPS.length - poopsLeft())} of ${POOPS.length} poops cleaned after ${t}. Grab air fresheners and keep moving!`, "Try again");
   }
   function pause() {
     if (!running) return;
