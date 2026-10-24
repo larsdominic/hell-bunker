@@ -5,26 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pooprunner 3D</title>
 <style>
-  /* Layout: full-height pixel viewport, letterboxed, with a 90s-shooter status bar underneath */
+  /* Layout: full-height game view, letterboxed, with a sunny status bar underneath */
   :root {
-    --void: #0d0b0a;
-    --plate: #1c1916;
-    --plate-hi: #332c25;
-    --bone: #e8dcc0;
-    --muted: #9a8e78;
-    --ember: #ffb340;
-    --rust: #b8452a;
-    --blood: #d0222b;
-    --display: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+    --sky: #bfe4ff;
+    --grass: #5aa83c;
+    --cream: #fff8e8;
+    --cream-hi: #f1e3c4;
+    --ink: #3b2a1a;
+    --muted: #8a7458;
+    --orange: #f08a24;
+    --orange-hi: #ffb04a;
+    --blue: #2f7dff;
+    --poop: #7a4a1e;
+    --stink: #8fd14f;
+    --display: ui-rounded, "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
     --ui: ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
-    color-scheme: dark;
+    color-scheme: light;
   }
   [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
   body {
     box-sizing: border-box;
-    background: var(--void);
-    color: var(--bone);
+    background: linear-gradient(var(--sky), #e6f5ff 60%, #cfe9b8);
+    color: var(--ink);
     font-family: var(--ui);
     display: flex;
     flex-direction: column;
@@ -39,8 +42,10 @@
     position: relative;
     flex: 1;
     min-height: 0;
-    background: #000;
-    border: 1px solid var(--plate-hi);
+    background: #9fd0ff;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 0 var(--cream-hi), 0 8px 24px rgb(40 80 120 / .18);
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
@@ -57,18 +62,19 @@
   .crosshair {
     position: absolute;
     left: 50%; top: 50%;
-    width: 14px; height: 14px;
+    width: 16px; height: 16px;
     transform: translate(-50%, -50%);
     pointer-events: none;
-    opacity: .8;
   }
   .crosshair::before, .crosshair::after {
     content: "";
     position: absolute;
-    background: var(--ember);
+    background: #fff;
+    box-shadow: 0 0 0 1px rgb(0 0 0 / .35);
+    border-radius: 1px;
   }
-  .crosshair::before { left: 6px; top: 0; width: 2px; height: 14px; }
-  .crosshair::after { top: 6px; left: 0; height: 2px; width: 14px; }
+  .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
+  .crosshair::after { top: 7px; left: 0; height: 2px; width: 16px; }
 
   .overlay {
     position: absolute;
@@ -76,7 +82,7 @@
     display: flex;
     overflow-y: auto;
     padding: 16px;
-    background: color-mix(in srgb, var(--void) 68%, transparent);
+    background: rgb(191 228 255 / .55);
   }
   .panel {
     margin: auto; /* centers, but stays scrollable when taller than the stage */
@@ -84,45 +90,66 @@
     width: 100%;
     box-sizing: border-box;
     display: grid;
-    gap: 14px;
-    padding: 22px 24px;
-    background: color-mix(in srgb, var(--plate) 92%, transparent);
-    border: 1px solid var(--plate-hi);
+    gap: 12px;
+    padding: 20px 22px;
+    background: var(--cream);
+    border: 2px solid var(--cream-hi);
+    border-radius: 18px;
+    box-shadow: 0 6px 0 var(--cream-hi), 0 14px 30px rgb(60 40 20 / .18);
   }
   .eyebrow {
     margin: 0;
     font-size: 12px;
-    font-weight: 600;
-    letter-spacing: .18em;
+    font-weight: 700;
+    letter-spacing: .14em;
     text-transform: uppercase;
-    color: var(--rust);
+    color: var(--blue);
   }
   .panel h1 {
     margin: 0;
     font-family: var(--display);
-    font-weight: 400;
-    font-size: clamp(2.2rem, 7vw, 3.6rem);
-    line-height: .95;
-    letter-spacing: .02em;
-    text-transform: uppercase;
-    color: var(--ember);
-    text-shadow: 0 2px 0 var(--rust), 0 0 24px color-mix(in srgb, var(--blood) 55%, transparent);
+    font-weight: 900;
+    font-size: clamp(2rem, 7vw, 3.2rem);
+    line-height: 1;
+    color: var(--orange);
+    text-shadow: 0 3px 0 var(--poop);
     text-wrap: balance;
   }
-  .panel p { margin: 0; line-height: 1.5; color: var(--bone); max-width: 60ch; }
-  .panel button {
+  .panel p { margin: 0; line-height: 1.45; max-width: 60ch; }
+  .panel button.go {
     justify-self: start;
-    font: 600 15px/1 var(--ui);
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--void);
-    background: var(--ember);
+    font: 800 16px/1 var(--ui);
+    color: #fff;
+    background: var(--orange);
     border: 0;
-    padding: 12px 18px;
+    border-radius: 999px;
+    padding: 13px 22px;
+    box-shadow: 0 4px 0 #b85f10;
     cursor: pointer;
   }
-  .panel button:hover { background: var(--bone); }
-  .panel button:focus-visible { outline: 2px solid var(--bone); outline-offset: 3px; }
+  .panel button.go:hover { background: var(--orange-hi); }
+  .panel button:focus-visible, .pick button:focus-visible, .easy input:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+  .who { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  .pick { display: flex; gap: 10px; }
+  .pick button {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    padding: 6px 10px 6px;
+    font: 700 13px/1 var(--ui);
+    color: var(--ink);
+    background: #fff;
+    border: 2px solid var(--cream-hi);
+    border-radius: 14px;
+    cursor: pointer;
+  }
+  .pick button[aria-pressed="true"] { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(240 138 36 / .25); }
+  .pick img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; }
+  .easy { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .easy input { width: 18px; height: 18px; accent-color: var(--orange); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+
   .keys {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -131,47 +158,61 @@
     font-size: 13px;
     color: var(--muted);
   }
-  .keys dt { color: var(--bone); font-weight: 600; }
+  .keys dt { color: var(--ink); font-weight: 700; }
   .keys dd { margin: 0; }
   kbd {
-    font: 600 11px/1 var(--ui);
-    padding: 3px 5px;
-    border: 1px solid var(--plate-hi);
-    background: var(--void);
-    color: var(--bone);
+    font: 700 11px/1 var(--ui);
+    padding: 3px 6px;
+    border: 1px solid var(--cream-hi);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: #fff;
+    color: var(--ink);
   }
 
   .hud {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 26px;
-    padding: 8px 16px;
-    background: var(--plate);
-    border: 1px solid var(--plate-hi);
+    gap: 6px 22px;
+    padding: 6px 14px;
+    background: var(--cream);
+    border: 2px solid var(--cream-hi);
+    border-radius: 14px;
   }
-  .stat { display: grid; gap: 2px; }
+  #hud-face { width: 44px; height: 44px; }
+  .stat { display: grid; gap: 3px; }
   .stat span {
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .16em;
+    font-weight: 800;
+    letter-spacing: .12em;
     text-transform: uppercase;
     color: var(--muted);
   }
   .stat b {
     font-family: var(--display);
-    font-weight: 400;
-    font-size: 1.9rem;
+    font-weight: 900;
+    font-size: 1.7rem;
     line-height: 1;
-    color: var(--ember);
+    color: var(--orange);
     font-variant-numeric: tabular-nums;
   }
-  .stat b.low { color: var(--blood); }
+  .stat b.low { color: #c0392b; }
+  .bar {
+    width: 120px;
+    height: 16px;
+    border-radius: 999px;
+    background: #fff;
+    border: 2px solid var(--cream-hi);
+    overflow: hidden;
+  }
+  .bar i { display: block; height: 100%; width: 0; background: var(--stink); border-radius: inherit; transition: width .2s; }
+  .bar.high i { background: var(--poop); }
   .msg {
     flex: 1;
     min-width: 0;
-    font-weight: 600;
-    color: var(--bone);
+    font-weight: 800;
+    color: var(--ink);
     text-align: right;
   }
   .hint { font-size: 12px; color: var(--muted); }
@@ -180,14 +221,12 @@
   .fire-btn {
     position: absolute;
     right: 18px; bottom: 18px;
-    width: 76px; height: 76px;
+    width: 78px; height: 78px;
     border-radius: 50%;
-    border: 2px solid var(--ember);
-    background: color-mix(in srgb, var(--rust) 45%, transparent);
-    color: var(--bone);
-    font: 600 13px/1 var(--ui);
-    letter-spacing: .1em;
-    text-transform: uppercase;
+    border: 3px solid #fff;
+    background: rgb(240 138 36 / .75);
+    color: #fff;
+    font: 800 13px/1 var(--ui);
     touch-action: none;
   }
   .joy {
@@ -195,7 +234,7 @@
     width: 96px; height: 96px;
     margin: -48px 0 0 -48px;
     border-radius: 50%;
-    border: 2px solid color-mix(in srgb, var(--bone) 40%, transparent);
+    border: 3px solid rgb(255 255 255 / .7);
     pointer-events: none;
   }
   .joy i {
@@ -204,35 +243,44 @@
     width: 40px; height: 40px;
     margin: -20px 0 0 -20px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--bone) 35%, transparent);
+    background: rgb(255 255 255 / .6);
   }
-
   .pause-btn {
     position: absolute;
     left: 10px; top: 10px;
     width: 40px; height: 40px;
-    border: 1px solid color-mix(in srgb, var(--bone) 40%, transparent);
-    background: color-mix(in srgb, var(--void) 55%, transparent);
-    color: var(--bone);
-    font: 600 14px/1 var(--ui);
-    letter-spacing: .1em;
+    border: 2px solid #fff;
+    border-radius: 12px;
+    background: rgb(47 125 255 / .55);
+    color: #fff;
+    font: 800 14px/1 var(--ui);
   }
-  .panel .rotate-tip { color: var(--ember); font-size: 13px; }
+  .panel .rotate-tip { color: var(--blue); font-size: 13px; font-weight: 600; }
   .panel button:disabled { opacity: .6; cursor: progress; }
 
   @media (max-width: 520px) {
-    .stat b { font-size: 1.5rem; }
+    .stat b { font-size: 1.4rem; }
+    .bar { width: 80px; }
     .hint { display: none; }
   }
   @media (orientation: landscape) {
     .rotate-tip { display: none; }
   }
+  /* Short screens (phones sideways): everything on the start card fits without scrolling */
   @media (max-height: 480px) {
-    .panel { gap: 8px; padding: 14px 18px; }
-    .panel h1 { font-size: 2rem; }
-    .panel p { font-size: 13px; line-height: 1.4; }
-    .hud { padding: 4px 12px; }
-    .stat b { font-size: 1.3rem; }
+    body { padding-block: 6px; gap: 6px; }
+    .overlay { padding: 8px; }
+    .panel { gap: 6px; padding: 10px 14px; max-width: 34rem; }
+    .panel h1 { font-size: 1.6rem; }
+    .panel p { font-size: 12px; line-height: 1.35; }
+    .eyebrow, .keys { display: none; }
+    .pick img { width: 34px; height: 34px; }
+    .pick button { padding: 4px 8px; }
+    .panel button.go { padding: 10px 16px; font-size: 14px; }
+    .hud { padding: 3px 10px; gap: 4px 14px; }
+    #hud-face { width: 32px; height: 32px; }
+    .stat b { font-size: 1.15rem; }
+    .stat span { font-size: 9px; }
   }
 </style>
 </head>
@@ -249,9 +297,17 @@
     <div class="panel">
       <p class="eyebrow" id="ov-eyebrow">Dog park · Saturday</p>
       <h1 id="ov-title">Pooprunner 3D</h1>
-      <p id="ov-text">Somebody's dogs left poops all over the park. Blast them with toilet paper before the stink gets you.</p>
-      <label class="easy"><input type="checkbox" id="easy"> Easy (slower poops, less stink)</label>
-      <button id="ov-btn" type="button">Start cleaning!</button>
+      <p id="ov-text">Somebody's dogs left 18 poops all over the park. Blast them with toilet paper before the stink gets you.</p>
+      <div class="who" id="who">
+        <div class="pick" role="group" aria-label="Who's playing?">
+          <button type="button" id="pick-james" aria-pressed="true"><img id="pick-img-james" alt="">James</button>
+          <button type="button" id="pick-harry" aria-pressed="false"><img id="pick-img-harry" alt="">Harry</button>
+        </div>
+        <div class="row">
+          <label class="easy"><input type="checkbox" id="easy"> Easy (slower poops, less stink)</label>
+          <button class="go" id="ov-btn" type="button">Start cleaning!</button>
+        </div>
+      </div>
       <dl class="keys" id="keys-desktop">
         <dt>Move</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd>
         <dt>Turn</dt><dd>Mouse, or <kbd>←</kbd> <kbd>→</kbd></dd>
@@ -269,9 +325,10 @@
 </div>
 
 <div class="hud" id="hud">
-  <div class="stat"><span>Stink</span><b id="hud-stink">0%</b></div>
+  <canvas id="hud-face" width="48" height="48" aria-label="Your face"></canvas>
+  <div class="stat"><span>Stink</span><div class="bar" id="hud-stink"><i></i></div></div>
   <div class="stat"><span>Rolls</span><b id="hud-rolls">30</b></div>
-  <div class="stat"><span>Poops</span><b id="hud-poops">0 left</b></div>
+  <div class="stat"><span>Poops</span><b id="hud-poops">18 left</b></div>
   <div class="msg" id="hud-msg" aria-live="polite"></div>
   <div class="hint">M map · P pause</div>
 </div>
@@ -1081,6 +1138,10 @@
     ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(ox - 1, oy - 1, MW * s + 2, MH * s + 2);
     ctx.fillStyle = "rgba(60,120,50,.8)";
     for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (grid[y * MW + x]) ctx.fillRect(ox + x * s, oy + y * s, s, s);
+    for (const e of sprites) {
+      const c = e.kind === "small" || e.kind === "big" ? "#7a4a1e" : e.kind === "king" ? "#ffd23a" : e.kind === "dog" ? "#ffffff" : null;
+      if (c && !e.gone) { ctx.fillStyle = c; ctx.fillRect(ox + e.x * s - 1, oy + e.y * s - 1, e.kind === "king" ? 4 : 3, e.kind === "king" ? 4 : 3); }
+    }
     ctx.fillStyle = "#2f7dff"; ctx.fillRect(ox + px * s - 2, oy + py * s - 2, 4, 4);
     ctx.strokeStyle = "#2f7dff"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(ox + px * s, oy + py * s); ctx.lineTo(ox + (px + dx * 2.5) * s, oy + (py + dy * 2.5) * s); ctx.stroke();
@@ -1346,23 +1407,64 @@
 
   // ---------- HUD & overlay ----------
   const $ = id => document.getElementById(id);
-  const hud = { msg: $("hud-msg"), rolls: $("hud-rolls"), stink: $("hud-stink"), poops: $("hud-poops") };
+  const hud = { msg: $("hud-msg"), rolls: $("hud-rolls"), stink: $("hud-stink"), poops: $("hud-poops"), face: $("hud-face") };
+
   let lastHud = "";
+
+  // Who's playing: James or Harry (remembered); their photo is the HUD face
+  const FACES = { james: { img: $("face-james"), crop: [0, 0, 163, 158] }, harry: { img: $("face-harry"), crop: [18, 0, 194, 182] } };
+  let kid = "james";
+  try { if (FACES[localStorage.getItem("pr3d-kid")]) kid = localStorage.getItem("pr3d-kid"); } catch (e) {}
+  function pickKid(k) {
+    kid = k;
+    for (const n of Object.keys(FACES)) $(`pick-${n}`).setAttribute("aria-pressed", String(n === k));
+    try { localStorage.setItem("pr3d-kid", k); } catch (e) {}
+    lastHud = "";
+  }
+  for (const n of Object.keys(FACES)) {
+    $(`pick-img-${n}`).src = FACES[n].img.src;
+    $(`pick-${n}`).addEventListener("click", () => pickKid(n));
+  }
+  pickKid(kid);
+
+  // The face gets greener with stink, and flies start buzzing round it from 50%
+  function drawFace() {
+    const g = hud.face.getContext("2d"), S = hud.face.width, { img, crop: [sx, sy, sw, sh] } = FACES[kid];
+    g.clearRect(0, 0, S, S);
+    g.save();
+    g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2); g.clip();
+    if (img.complete && img.naturalWidth) g.drawImage(img, sx, sy, sw, sh, 0, 0, S, S);
+    g.globalCompositeOperation = "source-atop";
+    g.fillStyle = `rgba(110,190,40,${stink / 100 * 0.55})`; g.fillRect(0, 0, S, S);
+    g.restore();
+    if (stink >= 50) {
+      for (let i = 0; i < 3; i++) {
+        const a = clock * 6 + i * 2.1, x = S / 2 + Math.cos(a) * S * 0.38, y = S / 2 + Math.sin(a * 1.3) * S * 0.38;
+        g.fillStyle = "rgba(255,255,255,.9)"; g.fillRect(x - 2, y - 2, 2, 1.5); g.fillRect(x + 1, y - 2, 2, 1.5);
+        g.fillStyle = "#111"; g.fillRect(x - 1, y - 1, 3, 2.5);
+      }
+    }
+  }
+
   function updateHud() {
-    if (!ready || !started) return;
-    const left = poopsLeft(), key = `${rolls}|${stink}|${left}`;
+    if (!ready) return;
+    const left = poopsLeft(), king = sprites.some(s => s.kind === "king" && !s.gone);
+    const key = `${rolls}|${stink}|${left}|${king}|${kid}`;
+    if (stink >= 50 || key !== lastHud) drawFace();
     if (key === lastHud) return;
     lastHud = key;
-    hud.stink.textContent = `${Math.round(stink)}%`;
-    hud.stink.classList.toggle("low", stink >= 70);
-    hud.poops.textContent = `${left} left`;
+    hud.stink.querySelector("i").style.width = `${Math.round(stink)}%`;
+    hud.stink.classList.toggle("high", stink >= 70);
+    hud.poops.textContent = king ? "KING!" : `${left} left`;
     hud.rolls.textContent = rolls;
     hud.rolls.classList.toggle("low", rolls === 0);
   }
   function setMsg(t) { hud.msg.textContent = t; msgT = t ? 2.5 : 0; }
 
   const overlay = $("overlay");
-  function showOverlay(eyebrow, title, text, btn) {
+  function showOverlay(eyebrow, title, text, btn, titleScreen = false) {
+    document.querySelector(".pick").hidden = document.querySelector(".easy").hidden = !titleScreen;
+    $("touch-ui").hidden = true;
     $("ov-eyebrow").textContent = eyebrow;
     $("ov-title").textContent = title;
     $("ov-text").textContent = text;
@@ -1380,7 +1482,7 @@
   function pause() {
     if (!running) return;
     running = false; trigger = false; keys.clear();
-    showOverlay("Paused", "Pooprunner 3D", "Take a breath of fresh air.", "Resume");
+    showOverlay("Paused", "Pooprunner 3D", `${POOPS.length - poopsLeft()} of ${POOPS.length} poops cleaned · stink ${Math.round(stink)}% · ${rolls} rolls`, "Resume");
   }
   function start() {
     if (!ready) return;
@@ -1388,6 +1490,7 @@
     if (!started || over) init();
     started = true; running = true;
     overlay.hidden = true;
+    $("touch-ui").hidden = !coarse;
     lockPointer();
   }
   $("ov-btn").addEventListener("click", start);
@@ -1397,7 +1500,7 @@
   let mouseDX = 0, touchTurn = 0;
   const touchMove = { x: 0, y: 0 };
   if (coarse) {
-    $("touch-ui").hidden = false; $("keys-desktop").hidden = true; $("keys-touch").hidden = false;
+    $("keys-desktop").hidden = true; $("keys-touch").hidden = false;
     $("rotate-tip").hidden = false; document.querySelector(".hint").hidden = true;
   }
   document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
@@ -1543,7 +1646,7 @@
       const kinds = Object.fromEntries(["roll", "tail", "puff", "small", "big", "cloud", "poof", "flowers", "king", "tp", "fresh", "dog"].map(k => [k, 0]));
       for (const s of sprites) kinds[s.kind] = (kinds[s.kind] || 0) + 1;
       const k = sprites.find(s => s.kind === "king" && !s.gone);
-      return { ready, running, over, px, py, angle: Math.atan2(dy, dx), rolls, stink, splat, easy, poopsLeft: poopsLeft(), flowers: kinds.flowers, kinds, msg: hud.msg.textContent,
+      return { ready, running, over, kid, px, py, angle: Math.atan2(dy, dx), rolls, stink, splat, easy, poopsLeft: poopsLeft(), flowers: kinds.flowers, kinds, msg: hud.msg.textContent,
         king: k ? { hp: k.hp, x: k.x, y: k.y } : null, dog: dog && { x: dog.x, y: dog.y }, barkT: dog && dog.barkT,
         props: sprites.filter(s => PROPS.some(p => p[0] === s.kind)).length };
     },
