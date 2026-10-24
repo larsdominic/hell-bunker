@@ -285,21 +285,76 @@
   const coarse = matchMedia("(pointer: coarse)").matches;
   const W = coarse ? 480 : 640, H = coarse ? 300 : 400;   // phones get fewer pixels to fill
   const PLANE = 0.66, VS = W / (2 * PLANE);               // vertical pixels per world unit at distance 1
-  const WALL_H = 2, EYE = 0.64, TPU = 64;                 // texels per world unit
+  const WALL_H = 1.25, EYE = 0.6, TPU = 64;               // hedge-high walls; 64 texels per world unit
 
   // ---------- Map ----------
-  // Letters are wall textures, "." is floor. (Placeholder until the park map.)
+  // Upper case = walls: F fence, H hedge, G gate, B toilet block, D toilet door.
+  // Floors: . grass, , path, s sand, ~ water and * flower bed (both drawn as floor but can't be walked on).
+  const MAP = [
+    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+    "F...H......H............BBBBBBBF",
+    "F.H.H.HHHH.H............BBBBBBBF",
+    "F.H...H....H.........**.BBBBBBBF",
+    "F.HHHHH.HHHH............BBBBBBBF",
+    "F.......H...............BBBDBBBF",
+    "FHHHH.HHH.HH...............,...F",
+    "F...H...H..H...............,...F",
+    "F.H.HHH.HH.H......**.......,...F",
+    "F.H...H....H......*........,...F",
+    "F.HHH..HHH.H,,,,,,,,,,,,,,,,...F",
+    "FHHHHH,HHHHH.......,...........F",
+    "F.....,............,..~~~~~....F",
+    "F.....,............,.~~~~~~~...F",
+    "F...,,,,,,,,,,,,,,,,.~~~~~~~...F",
+    "F...,................~~~~~~~...F",
+    "F...,.**..............~~~~~....F",
+    "F...,..................~~~.....F",
+    "F...,..........................F",
+    "F...,..........................F",
+    "F...,........**,,,,,...........F",
+    "F...,........**.....HHHHH..HHHHF",
+    "F...,...............sssssssssssF",
+    "F...,...............sssssssssssF",
+    "F...,...HHH.........sssssssssssF",
+    "F...,...............sssssssssssF",
+    "F...,...............sssssssssssF",
+    "F...,...............sssssssssssF",
+    "F...,...............sssssssssssF",
+    "F...,...............sssssssssssF",
+    "F...,...............sssssssssssF",
+    "FFFGGFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+  ];
   const MW = 32, MH = 32;
-  const MAP = Array.from({ length: MH }, (_, y) =>
-    y === 0 || y === MH - 1 ? "F".repeat(MW) : "F" + ".".repeat(MW - 2) + "F");
-  const WALL_KEYS = ["F"];
-  const grid = new Uint8Array(MW * MH);
-  for (let y = 0; y < MH; y++)
-    for (let x = 0; x < MW; x++) grid[y * MW + x] = MAP[y][x] === "." ? 0 : WALL_KEYS.indexOf(MAP[y][x]) + 1;
+  const WALL_KEYS = ["F", "H", "G", "B", "D"];
+  const FLOOR_OF = { ".": "grass", ",": "path", s: "sand", "~": "water", "*": "flowers" };
+  const grid = new Uint8Array(MW * MH), blockGrid = new Uint8Array(MW * MH);
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const c = MAP[y][x];
+    grid[y * MW + x] = FLOOR_OF[c] ? 0 : WALL_KEYS.indexOf(c) + 1;
+    blockGrid[y * MW + x] = c === "~" || c === "*" ? 1 : 0;
+  }
   const solid = (x, y) => x < 0 || y < 0 || x >= MW || y >= MH || grid[(y | 0) * MW + (x | 0)] > 0;
+  const blocked = (x, y) => solid(x, y) || blockGrid[(y | 0) * MW + (x | 0)] > 0;
 
+  // Where things start. Poops and pickups sit on cell centres.
   const START = [3.5, 29.5, -Math.PI / 2];
+  const KING_SPAWN = [27.5, 6.5];
+  const POOPS = [
+    ["small", 2, 7], ["small", 8, 1], ["small", 22, 28], ["small", 29, 24], ["small", 16, 6], ["small", 20, 7],
+    ["small", 14, 16], ["small", 9, 19], ["small", 18, 26], ["small", 28, 19], ["small", 12, 28], ["small", 29, 9],
+    ["big", 9, 9], ["big", 25, 29], ["big", 13, 12], ["big", 22, 19], ["big", 8, 23], ["big", 29, 14],
+  ];
+  const PICKUPS = [["tp", 5, 6], ["tp", 17, 2], ["tp", 29, 27], ["tp", 11, 17], ["fresh", 20, 12], ["fresh", 2, 20], ["fresh", 24, 24]];
+  const PROPS = [
+    ...[[14, 3], [20, 4], [13, 7], [23, 9], [8, 17], [2, 25], [10, 28], [19, 24], [29, 20], [25, 8], [6, 20], [12, 23]].map(([x, y]) => ["tree", x, y]),
+    ["bench", 9, 13], ["bench", 18, 12], ["bench", 20, 18], ["bench", 14, 25],
+    ["bin", 5, 15], ["bin", 18, 15], ["bin", 19, 21], ["swings", 23, 25], ["slide", 27, 27],
+  ];
+
+  // Sunny day: bright ambient light, shadows fall away from the sun (north-west), far things fade into haze
   const AMB = [1, 1, 0.96];
+  const SUN = [-0.6, -0.8], SUN_ANGLE = Math.atan2(SUN[1], SUN[0]);
+  const HAZE = [200, 225, 245];
 
   // ---------- Canvas ----------
   const cv = document.getElementById("view");
@@ -333,15 +388,53 @@
   const fill = (w, h, col) => { const c = canvas(w, h), g = c.getContext("2d"); g.fillStyle = col; g.fillRect(0, 0, w, h); return c; };
 
   function buildArt() {
+    const wall = col => pixels(fill(64, 80, col));
     return {
-      walls: { F: pixels(fill(64, 128, "#a0703c")) },
-      flats: { grass: pixels(fill(64, 64, "#5aa83c")), ceil: pixels(fill(64, 64, "#9fd0ff")) },
+      walls: { F: wall("#c89a5c"), H: wall("#3f8a3a"), G: wall("#8a8f96"), B: wall("#e8dcc0"), D: wall("#3c9a5a") },
+      flats: {
+        grass: pixels(fill(64, 64, "#5aa83c")), path: pixels(fill(64, 64, "#d8c59a")), sand: pixels(fill(64, 64, "#f0d98a")),
+        water: [pixels(fill(64, 64, "#4aa0e0")), pixels(fill(64, 64, "#58aee8"))], flowers: pixels(fill(64, 64, "#d070a0")),
+      },
       sprites: {},
     };
   }
 
+  // Sky panorama: one full turn is SKY_W columns; rows line up with the top half of the screen
+  const SKY_W = 2048, SKY_H = H / 2;
+  function buildSky() {
+    const c = canvas(SKY_W, SKY_H), g = c.getContext("2d"), r = rng(7);
+    const grad = g.createLinearGradient(0, 0, 0, SKY_H);
+    grad.addColorStop(0, "#5fb4ff"); grad.addColorStop(1, "#d6efff");
+    g.fillStyle = grad; g.fillRect(0, 0, SKY_W, SKY_H);
+    const wrap = (x, fn) => { for (const o of [-SKY_W, 0, SKY_W]) fn(x + o); };
+    const sx = ((SUN_ANGLE / (2 * Math.PI) + 1) % 1) * SKY_W, sy = SKY_H * 0.3;
+    wrap(sx, x => {
+      const glow = g.createRadialGradient(x, sy, 0, x, sy, 70);
+      glow.addColorStop(0, "rgba(255,250,210,.9)"); glow.addColorStop(1, "rgba(255,250,210,0)");
+      g.fillStyle = glow; g.fillRect(x - 70, sy - 70, 140, 140);
+      g.fillStyle = "#fff8d0"; g.beginPath(); g.arc(x, sy, 18, 0, Math.PI * 2); g.fill();
+    });
+    for (let i = 0; i < 6; i++) {
+      const cx = (i + r() * 0.6) * SKY_W / 6, cy = SKY_H * (0.12 + r() * 0.35), s = 0.7 + r() * 0.6;
+      wrap(cx, x => {
+        g.fillStyle = "rgba(255,255,255,.92)";
+        for (let j = 0; j < 7; j++) {
+          g.beginPath();
+          g.ellipse(x + (j - 3) * 16 * s, cy - Math.sin(j / 6 * Math.PI) * 10 * s, 20 * s, 13 * s, 0, 0, Math.PI * 2);
+          g.fill();
+        }
+      });
+    }
+    // Distant tree line along the horizon
+    g.fillStyle = "#8fc49a";
+    g.beginPath(); g.moveTo(0, SKY_H);
+    for (let x = 0; x <= SKY_W; x += 8) g.lineTo(x, SKY_H - 14 - Math.abs(Math.sin(x * 0.021) * 9 + Math.sin(x * 0.057) * 6 + (r() - 0.5) * 3));
+    g.lineTo(SKY_W, SKY_H); g.fill();
+    return pixels(c).px;
+  }
+
   const WALLS = [null];
-  let ART = null, ready = false, floorOf = [], ceilOf = [];
+  let ART = null, SKY = null, ready = false, floorOf = [];
 
   // ---------- Light ----------
   // A light map at LM samples per cell: baked light, then per frame the moving lights on top.
@@ -375,7 +468,16 @@
     }
   }
   function bakeLight() {
-    bakedR.fill(AMB[0]); bakedG.fill(AMB[1]); bakedB.fill(AMB[2]);
+    const trees = PROPS.filter(p => p[0] === "tree").map(([, x, y]) => [x + 0.5, y + 0.5]);
+    for (let j = 0; j < LW; j++) for (let i = 0; i < LW; i++) {
+      const wx = (i + 0.5) / LM, wy = (j + 0.5) / LM, k = j * LW + i;
+      let v = 1;
+      // Hedges and walls cast a short shadow away from the sun
+      for (let s = 0.1; s <= 1.3; s += 0.1) if (solid(wx + SUN[0] * s, wy + SUN[1] * s)) { v = 0.68; break; }
+      // Round shade under the trees
+      if (trees.some(([tx, ty]) => (tx - wx) ** 2 + (ty - wy) ** 2 < 0.55 * 0.55)) v *= 0.72;
+      bakedR[k] = AMB[0] * v; bakedG[k] = AMB[1] * v; bakedB[k] = AMB[2] * v;
+    }
   }
   function frameLight() {
     Lr.set(bakedR); Lg.set(bakedG); Lb.set(bakedB);
@@ -404,7 +506,8 @@
     [plx, ply] = [plx * c - ply * s, plx * s + ply * c];
   }
 
-  const fog = d => Math.max(0.1, Math.min(1, 1.2 - d * 0.075));
+  // How much of a thing's own colour survives at distance d; the rest is sky-blue haze
+  const fog = d => Math.max(0.25, Math.min(1, 1.15 - d * 0.05));
 
   // ---------- Rendering ----------
   function renderWalls() {
@@ -436,36 +539,40 @@
       const hx = side === 0 ? mx - (stepX > 0 ? 0.02 : -1.02) : px + dist * rdx;
       const hy = side === 1 ? my - (stepY > 0 ? 0.02 : -1.02) : py + dist * rdy;
       const k = lightIndex(hx, hy);
-      const f = fog(dist) * (side ? 0.82 : 1), lr = Lr[k] * f, lg = Lg[k] * f, lb = Lb[k] * f;
+      const fg = fog(dist), f = fg * (side ? 0.82 : 1), lr = Lr[k] * f, lg = Lg[k] * f, lb = Lb[k] * f;
+      const hr = HAZE[0] * (1 - fg), hg = HAZE[1] * (1 - fg), hb = HAZE[2] * (1 - fg);
 
       const step = WALL_H * TPU / (bot - top);
       let tp = (y0 - top) * step;
       for (let y = y0; y < y1; y++) {
         const c = tp0[Math.min(th - 1, tp | 0) * tw + tx];
         tp += step;
-        let r = (c & 255) * lr, g = ((c >> 8) & 255) * lg, b = ((c >> 16) & 255) * lb;
+        let r = (c & 255) * lr + hr, g = ((c >> 8) & 255) * lg + hg, b = ((c >> 16) & 255) * lb + hb;
         if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
         buf[y * W + x] = 0xFF000000 | (b << 16) | (g << 8) | r;
       }
+
+      // Open sky above the wall: the panorama column for this ray's direction
+      const sc = (((Math.atan2(rdy, rdx) / (2 * Math.PI) + 1) % 1) * SKY_W) | 0;
+      for (let y = 0; y < y0; y++) buf[y * W + x] = SKY[y * SKY_W + sc];
     }
   }
 
   function renderFlats() {
     const rdx0 = dx - plx, rdy0 = dy - ply, rdx1 = dx + plx, rdy1 = dy + ply;
-    for (let y = 0; y < H; y++) {
-      const floor = y >= H / 2;
-      const p = floor ? y - H / 2 + 0.5 : H / 2 - y - 0.5;
-      const rowD = (floor ? EYE : WALL_H - EYE) * VS / p;
+    for (let y = H / 2; y < H; y++) {
+      const rowD = EYE * VS / (y - H / 2 + 0.5);
       const fsx = rowD * (rdx1 - rdx0) / W, fsy = rowD * (rdy1 - rdy0) / W;
       let fx = px + rowD * rdx0, fy = py + rowD * rdy0;
-      const f = fog(rowD), flats = floor ? floorOf : ceilOf, row = y * W;
+      const f = fog(rowD), row = y * W;
+      const hr = HAZE[0] * (1 - f), hg = HAZE[1] * (1 - f), hb = HAZE[2] * (1 - f);
       for (let x = 0; x < W; x++, fx += fsx, fy += fsy) {
-        if (floor ? y < wallBot[x] : y >= wallTop[x]) continue;
+        if (y < wallBot[x]) continue;
         const cx = fx | 0, cy = fy | 0;
         if (cx < 0 || cy < 0 || cx >= MW || cy >= MH) continue;
-        const c = flats[cy * MW + cx][(((fy - cy) * TPU) | 0) * TPU + (((fx - cx) * TPU) | 0)];
+        const c = floorOf[cy * MW + cx][(((fy - cy) * TPU) | 0) * TPU + (((fx - cx) * TPU) | 0)];
         const k = ((fy * LM) | 0) * LW + ((fx * LM) | 0);
-        let r = (c & 255) * Lr[k] * f, g = ((c >> 8) & 255) * Lg[k] * f, b = ((c >> 16) & 255) * Lb[k] * f;
+        let r = (c & 255) * Lr[k] * f + hr, g = ((c >> 8) & 255) * Lg[k] * f + hg, b = ((c >> 16) & 255) * Lb[k] * f + hb;
         if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
         buf[row + x] = 0xFF000000 | (b << 16) | (g << 8) | r;
       }
@@ -486,8 +593,9 @@
       const left = cxs - tex.ox * u, top = floorY - tex.oy * u;
       const x0 = Math.max(0, Math.ceil(left)), x1 = Math.min(W, Math.ceil(left + tex.w * u));
       const y0 = Math.max(0, Math.ceil(top)), y1 = Math.min(H, Math.ceil(top + tex.h * u));
-      let lr = 1, lg = 1, lb = 1;
-      if (!s.bright) { const f = fog(tY), l = lightAt(s.x, s.y); lr = l[0] * f; lg = l[1] * f; lb = l[2] * f; }
+      const f = fog(tY), hr = HAZE[0] * (1 - f), hg = HAZE[1] * (1 - f), hb = HAZE[2] * (1 - f);
+      let lr = f, lg = f, lb = f;
+      if (!s.bright) { const l = lightAt(s.x, s.y); lr *= l[0]; lg *= l[1]; lb *= l[2]; }
       const tp = tex.px, tw = tex.w, inv = 1 / u;
       for (let x = x0; x < x1; x++) {
         if (tY >= zbuf[x]) continue;
@@ -495,7 +603,7 @@
         for (let y = y0; y < y1; y++) {
           const c = tp[Math.min(tex.h - 1, ((y - top) * inv) | 0) * tw + tx];
           if (!c) continue;
-          let r = (c & 255) * lr, g = ((c >> 8) & 255) * lg, b = ((c >> 16) & 255) * lb;
+          let r = (c & 255) * lr + hr, g = ((c >> 8) & 255) * lg + hg, b = ((c >> 16) & 255) * lb + hb;
           if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
           buf[y * W + x] = 0xFF000000 | (b << 16) | (g << 8) | r;
         }
@@ -524,7 +632,7 @@
   }
 
   // ---------- Gameplay ----------
-  const canStand = (x, y, r) => !solid(x - r, y - r) && !solid(x + r, y - r) && !solid(x - r, y + r) && !solid(x + r, y + r);
+  const canStand = (x, y, r) => !blocked(x - r, y - r) && !blocked(x + r, y - r) && !blocked(x - r, y + r) && !blocked(x + r, y + r);
   const blockedBySprite = (x, y, self) => sprites.some(s => s !== self && s.solid && (s.x - x) ** 2 + (s.y - y) ** 2 < 0.25);
 
   // Animated things run even behind the title screen
@@ -678,9 +786,12 @@
   // ---------- Startup ----------
   function setup() {
     ART = buildArt();
+    SKY = buildSky();
     for (const k of WALL_KEYS) WALLS.push(ART.walls[k]);
-    floorOf = new Array(MW * MH).fill(ART.flats.grass.px);
-    ceilOf = new Array(MW * MH).fill(ART.flats.ceil.px);
+    for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+      const f = ART.flats[FLOOR_OF[MAP[y][x]] || "grass"];
+      floorOf[y * MW + x] = (Array.isArray(f) ? f[0] : f).px;
+    }
     bakeLight();
     init();
     ready = true;
@@ -713,6 +824,10 @@
     },
     pixel(x, y) { const c = buf[(y | 0) * W + (x | 0)]; return [c & 255, (c >> 8) & 255, (c >> 16) & 255]; },
     light: (x, y) => { frameLight(); return lightAt(x, y); },
+    solidAt: solid,
+    blockedAt: (x, y) => blocked(x, y) && !solid(x, y),
+    mapRows: () => MAP,
+    spawns: () => ({ start: START, king: KING_SPAWN, poops: POOPS, pickups: PICKUPS, props: PROPS }),
   };
 })();
 </script>
