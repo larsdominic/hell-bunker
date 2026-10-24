@@ -1,6 +1,7 @@
 // The park: 32x32 fenced map, everything reachable, pond blocks walking, open sky, haze, sun shadows, frame rate
 export default async t => {
   await t.boot();
+  if (await t.eval("!!__pr3d.clear")) await t.eval("__pr3d.clear('poops')");   // from Task 5 on: keep the views clear
   const W = await t.eval("document.getElementById('view').width"), H = await t.eval("document.getElementById('view').height");
   const sp = await t.eval("__pr3d.spawns()");
   const rows = await t.eval("__pr3d.mapRows()");

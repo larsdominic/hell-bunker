@@ -250,6 +250,7 @@
       <p class="eyebrow" id="ov-eyebrow">Dog park · Saturday</p>
       <h1 id="ov-title">Pooprunner 3D</h1>
       <p id="ov-text">Somebody's dogs left poops all over the park. Blast them with toilet paper before the stink gets you.</p>
+      <label class="easy"><input type="checkbox" id="easy"> Easy (slower poops, less stink)</label>
       <button id="ov-btn" type="button">Start cleaning!</button>
       <dl class="keys" id="keys-desktop">
         <dt>Move</dt><dd><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dd>
@@ -604,6 +605,94 @@
   }
   const BLASTER_LEVELS = [0.6, 0.7, 0.8, 0.9, 1];
 
+  // A cartoon poop: three stacked swirls with a curl on top, eyes and a mouth. sq = squash (<1) / stretch (>1).
+  // The canvas has room above for the flies.
+  function drawPoop(g, w, h, { body, sq, angry, flies, fliesAt, crown }) {
+    const bh = body * sq, bw = w * 0.9 / Math.sqrt(sq), cx = w / 2, base = h;
+    const tiers = [[0.5, 0.3], [0.38, 0.27], [0.25, 0.24]];
+    let y = base;
+    tiers.forEach(([rw, th], i) => {
+      const ry = bh * th / 2 + 1, rx = bw * rw;
+      y -= bh * th * (i ? 0.78 : 0.62);
+      blob(g, cx, y, rx, ry, "#5e3511");
+      blob(g, cx - rx * 0.08, y - ry * 0.12, rx * 0.94, ry * 0.86, "#7a4a1e");
+      blob(g, cx - rx * 0.4, y - ry * 0.4, rx * 0.32, ry * 0.26, "#a06a36");   // shine
+    });
+    // curl on top
+    g.strokeStyle = "#7a4a1e"; g.lineWidth = bw * 0.09; g.lineCap = "round";
+    g.beginPath(); g.moveTo(cx - bw * 0.08, y - bh * 0.08); g.quadraticCurveTo(cx + bw * 0.12, y - bh * 0.3, cx - bw * 0.02, y - bh * 0.32); g.stroke();
+    // face on the middle tier
+    const fy = base - bh * 0.42, ex = bw * 0.13, er = bw * 0.085;
+    for (const s of [-1, 1]) {
+      blob(g, cx + s * ex, fy, er, er * 1.15, "#ffffff");
+      blob(g, cx + s * ex + er * 0.25, fy + er * 0.15, er * 0.5, er * 0.6, "#1a1a1a");
+      if (angry) {
+        g.strokeStyle = "#2a1505"; g.lineWidth = bw * 0.035;
+        g.beginPath(); g.moveTo(cx + s * ex * 2.1, fy - er * 1.9); g.lineTo(cx + s * ex * 0.4, fy - er * 1.1); g.stroke();
+      }
+    }
+    g.strokeStyle = "#2a1505"; g.lineWidth = bw * 0.03;
+    g.beginPath();
+    if (angry) { g.moveTo(cx - ex, fy + er * 2.4); g.quadraticCurveTo(cx, fy + er * 1.6, cx + ex, fy + er * 2.4); }
+    else g.arc(cx, fy + er * 1.3, ex * 0.9, Math.PI * 0.15, Math.PI * 0.85);
+    g.stroke();
+    if (crown) {
+      const ty = y - bh * 0.3, cw = bw * 0.42;
+      g.fillStyle = "#ffd23a";
+      g.beginPath(); g.moveTo(cx - cw, ty); g.lineTo(cx - cw, ty - cw * 0.55); g.lineTo(cx - cw * 0.5, ty - cw * 0.2);
+      g.lineTo(cx, ty - cw * 0.75); g.lineTo(cx + cw * 0.5, ty - cw * 0.2); g.lineTo(cx + cw, ty - cw * 0.55); g.lineTo(cx + cw, ty); g.fill();
+      g.fillStyle = "#e0a820"; g.fillRect(cx - cw, ty - cw * 0.12, cw * 2, cw * 0.12);
+      for (const [x, c] of [[-0.55, "#d8463a"], [0, "#2f7dff"], [0.55, "#3aa257"]]) blob(g, cx + x * cw, ty - cw * 0.25, cw * 0.1, cw * 0.1, c);
+    }
+    // flies buzzing round the top
+    for (let i = 0; i < flies; i++) {
+      const a = fliesAt + i * Math.PI * 2 / flies, fx = cx + Math.cos(a) * bw * 0.45, fy2 = base - bh - h * 0.06 + Math.sin(a * 2) * h * 0.04;
+      blob(g, fx - 2, fy2 - 2, 2.2, 1.4, "rgba(220,235,255,.95)"); blob(g, fx + 2, fy2 - 2, 2.2, 1.4, "rgba(220,235,255,.95)");
+      blob(g, fx, fy2, 2, 1.6, "#1a1a1a");
+    }
+  }
+  function tint(src, col) {
+    const c = canvas(src.w, src.h), g = c.getContext("2d"), id = g.createImageData(src.w, src.h);
+    new Uint32Array(id.data.buffer).set(src.px); g.putImageData(id, 0, 0);
+    g.globalCompositeOperation = "source-atop"; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height);
+    return pixels(c, src.ox, src.oy, src.k);
+  }
+  // Frames: rest, squash, stretch (each with the flies in a different spot) + the white hit flash
+  function poopSet(wu, hu, look) {
+    const frames = [[1, 0], [0.82, 2.1], [1.15, 4.2]].map(([sq, fa]) =>
+      sprite(wu, hu, (g, w, h) => drawPoop(g, w, h, { ...look, body: h * look.bodyK, sq, fliesAt: fa })));
+    return { frames, hit: tint(frames[0], "rgba(255,255,255,.75)") };
+  }
+  function drawCloud(g, w, h, i) {
+    const r = rng(3 + i);
+    for (let n = 0; n < 9; n++) blob(g, w * (0.25 + r() * 0.5), h * (0.3 + r() * 0.45), w * (0.14 + r() * 0.1), h * (0.14 + r() * 0.1), pick(r, ["#8fd14f", "#a6dd5c", "#7cc043"]));
+    g.strokeStyle = "#5a8f2a"; g.lineWidth = 2;
+    for (const x of [0.35, 0.5, 0.65]) { g.beginPath(); g.moveTo(w * x, h * 0.25); g.bezierCurveTo(w * (x - 0.06), h * 0.15, w * (x + 0.06), h * 0.1, w * x, h * (0.02 + i * 0.03)); g.stroke(); }
+    for (const s of [-1, 1]) blob(g, w * (0.5 + s * 0.1), h * 0.5, w * 0.035, h * 0.05, "#2d4a15");
+  }
+  function drawPoof(g, w, h, i) {
+    const r = rng(21);
+    for (let n = 0; n < 14; n++) {
+      const a = r() * Math.PI * 2, d = (0.12 + r() * 0.2) * (1 + i * 0.7) * w;
+      const x = w / 2 + Math.cos(a) * d, y = h * 0.55 + Math.sin(a) * d * 0.8;
+      if (n % 2) blob(g, x, y, 4 - i, 3 - i * 0.6, pick(r, ["#e2463c", "#f6c838", "#9b59d0", "#ff7fb0"]));   // petals
+      else {                                                                                                 // sparkles
+        g.fillStyle = "#fff6a0"; const s = 6 - i * 1.5;
+        g.beginPath(); g.moveTo(x, y - s); g.lineTo(x + s * 0.3, y); g.lineTo(x, y + s); g.lineTo(x - s * 0.3, y); g.fill();
+        g.beginPath(); g.moveTo(x - s, y); g.lineTo(x, y + s * 0.3); g.lineTo(x + s, y); g.lineTo(x, y - s * 0.3); g.fill();
+      }
+    }
+  }
+  function drawFlowerClump(g, w, h) {
+    const r = rng(8);
+    for (let n = 0; n < 7; n++) blob(g, w * (0.2 + r() * 0.6), h * (0.7 + r() * 0.25), w * 0.09, h * 0.12, "#3b8a30");
+    for (let n = 0; n < 9; n++) {
+      const x = w * (0.15 + r() * 0.7), y = h * (0.25 + r() * 0.5), col = pick(r, ["#e2463c", "#f6c838", "#9b59d0", "#ff7fb0", "#ffffff"]);
+      g.strokeStyle = "#3b8a30"; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x, h); g.stroke();
+      blob(g, x, y, w * 0.06, w * 0.06, col); blob(g, x, y, w * 0.022, w * 0.022, "#fff3a0");
+    }
+  }
+
   function buildArt() {
     const r = rng(42), blaster = drawBlaster(W / 640);
     const tex = (w, h, fn) => { const c = canvas(w, h); fn(c.getContext("2d")); return pixels(c); };
@@ -628,6 +717,13 @@
         roll: [0, 1, 2, 3].map(i => sprite(0.26, 0.22, (g, w, h) => drawRoll(g, w, h, i))),
         tail: [0, 1, 2].map(i => sprite(0.1, 0.035, (g, w, h) => drawTail(g, w, h, i))),
         puff: [0, 1, 2].map(i => sprite(0.5, 0.4, (g, w, h) => drawPuff(g, w, h, i))),
+        cloud: [0, 1].map(i => sprite(0.5, 0.42, (g, w, h) => drawCloud(g, w, h, i))),
+        poof: [0, 1, 2].map(i => sprite(0.7, 0.6, (g, w, h) => drawPoof(g, w, h, i))),
+        flowers: sprite(0.45, 0.22, drawFlowerClump),
+      },
+      poops: {
+        small: poopSet(0.5, 0.6, { bodyK: 0.75, angry: false, flies: 2 }),
+        big: poopSet(0.85, 0.98, { bodyK: 0.82, angry: true, flies: 3 }),
       },
       blaster: BLASTER_LEVELS.map(v => shadeCanvas(blaster, v)),
     };
@@ -722,16 +818,18 @@
 
   // ---------- Game state ----------
   let px, py, dx, dy, plx, ply, sprites = [];
-  let rolls, recoil, bob, moveAmt, cooldown, msgT, elapsed, clock = 0;
+  let rolls, stink, splat, recoil, bob, moveAmt, cooldown, msgT, elapsed, clock = 0, easy = false;
   let running = false, started = false, over = null, showMap = true, trigger = false, hold = false;
 
   function view(x, y, a) { px = x; py = y; dx = Math.cos(a); dy = Math.sin(a); plx = -dy * PLANE; ply = dx * PLANE; }
   function init() {
     view(...START);
     rolls = 30;
-    recoil = bob = moveAmt = cooldown = msgT = elapsed = 0;
+    stink = splat = recoil = bob = moveAmt = cooldown = msgT = elapsed = 0;
+    easy = $("easy").checked;
     over = null;
     sprites = PROPS.map(([kind, x, y]) => ({ kind, x: x + 0.5, y: y + 0.5, z: 0, tex: ART.sprites[kind], solid: SOLID_PROPS[kind] }));
+    for (const [kind, x, y] of POOPS) spawnPoop(kind, x + 0.5, y + 0.5);
     setMsg("");
   }
 
@@ -865,8 +963,21 @@
     renderFlats();
     renderSprites();
     ctx.putImageData(frameImg, 0, 0);
+    if (splat > 0) drawSplat();
     if (started) drawBlasterHud();
     if (showMap && started) drawMinimap();
+  }
+
+  // Brown splat on the "camera" when a poop jumps on you
+  const SPLATS = (() => { const r = rng(99); return Array.from({ length: 9 }, () => [r() * W, r() * H, (0.06 + r() * 0.1) * W]); })();
+  function drawSplat() {
+    ctx.save(); ctx.globalAlpha = Math.min(1, splat);
+    for (const [x, y, rad] of SPLATS) {
+      ctx.fillStyle = "#6b3f17"; ctx.beginPath(); ctx.ellipse(x, y, rad, rad * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#8a5526"; ctx.beginPath(); ctx.ellipse(x - rad * 0.25, y - rad * 0.2, rad * 0.4, rad * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 5; i++) { const a = i * 1.3 + x; ctx.fillStyle = "#6b3f17"; ctx.beginPath(); ctx.arc(x + Math.cos(a) * rad * 1.3, y + Math.sin(a) * rad * 1.1, rad * 0.16, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.restore();
   }
 
   function drawBlasterHud() {
@@ -883,7 +994,7 @@
   const blockedBySprite = (x, y, self) => sprites.some(s => s !== self && s.solid && (s.x - x) ** 2 + (s.y - y) ** 2 < 0.25);
 
   // Short-lived effects: frames over their lifetime (they age in update, so pausing freezes them)
-  const FX = { tail: 0.4, puff: 0.35 };
+  const FX = { tail: 0.4, puff: 0.35, poof: 0.6 };
   function effect(kind, x, y, z) { sprites.push({ kind, x, y, z, age: 0, tex: ART.sprites[kind][0] }); }
 
   function fire() {
@@ -900,8 +1011,79 @@
     s.x += s.vx * dt; s.y += s.vy * dt; s.dist += 9 * dt; s.age += dt;
     s.tex = s.dist < 0.5 ? null : ART.sprites.roll[(s.age * 24 | 0) % 4];
     if ((s.tailT += dt) >= 0.03 && s.dist > 0.8) { s.tailT = 0; effect("tail", ox, oy, s.z + 0.08); }
-    if (solid(s.x, s.y)) { s.gone = true; effect("puff", ox, oy, s.z - 0.1); }
+    const target = sprites.find(p => POOP[p.kind] && !p.gone && (p.x - s.x) ** 2 + (p.y - s.y) ** 2 < POOP[p.kind].hitR ** 2);
+    if (target) { s.gone = true; effect("puff", s.x, s.y, s.z - 0.1); hitPoop(target); }
+    else if (solid(s.x, s.y)) { s.gone = true; effect("puff", ox, oy, s.z - 0.1); }
     else if (s.dist >= 14) { s.gone = true; effect("puff", s.x, s.y, s.z - 0.1); }
+  }
+
+  // ---------- Poops ----------
+  // speed / easy speed in units per second, hop = how high they bounce, stink = per hit on you (easy: half)
+  const POOP = {
+    small: { hp: 1, speed: 1.6, easySpeed: 1.1, hop: 0.25, hitR: 0.45, stink: 12 },
+    big:   { hp: 2, speed: 0.9, easySpeed: 0.6, hop: 0.15, hitR: 0.65, stink: 10 },
+  };
+  const poopsLeft = () => sprites.reduce((n, s) => n + (POOP[s.kind] && !s.gone ? 1 : 0), 0);
+
+  function spawnPoop(kind, x, y, awake = false) {
+    const p = { kind, x, y, z: 0, hp: POOP[kind].hp, awake, anim: R() * 3, cool: kind === "big" ? 1 + R() : 0, flash: 0, knockT: 0, kx: 0, ky: 0 };
+    p.tex = ART.poops[kind].frames[0];
+    sprites.push(p);
+    return p;
+  }
+  function hitPoop(p) {
+    p.hp--; p.awake = true; p.flash = 0.15;
+    if (p.hp > 0) { tone(520, 300, 0.1, "triangle", 0.1); return; }
+    p.gone = true;
+    effect("poof", p.x, p.y, 0);
+    sprites.push({ kind: "flowers", x: p.x, y: p.y, z: 0, tex: ART.sprites.flowers });
+    sfxPop();
+  }
+  function addStink(n) {
+    if (over) return;
+    stink = Math.min(100, stink + n);
+    if (stink >= 100) end("lose");
+  }
+
+  function updatePoop(p, dt) {
+    const def = POOP[p.kind], ex = px - p.x, ey = py - p.y, d = Math.hypot(ex, ey) || 0.001;
+    p.anim += dt; p.cool -= dt; p.flash -= dt;
+    if (!p.awake && d < 10 && los(p.x, p.y, px, py)) p.awake = true;
+    let moving = false;
+    const step = (vx, vy) => {
+      const nx = p.x + vx * dt, ny = p.y + vy * dt;
+      if (canStand(nx, p.y, 0.25) && !blockedBySprite(nx, p.y, p)) { p.x = nx; moving = true; }
+      if (canStand(p.x, ny, 0.25) && !blockedBySprite(p.x, ny, p)) { p.y = ny; moving = true; }
+    };
+    if (p.knockT > 0) { p.knockT -= dt; step(p.kx * 2.5, p.ky * 2.5); }
+    else if (p.awake) {
+      const v = easy ? def.easySpeed : def.speed;
+      if (d > 0.5) step(ex / d * v, ey / d * v);
+      if (p.kind === "small" && d < 0.75 && p.cool <= 0) {
+        // Jumps on you, then bounces back off
+        addStink(easy ? def.stink / 2 : def.stink);
+        splat = Math.min(1, splat + 1); sfxSquelch();
+        p.kx = -ex / d; p.ky = -ey / d; p.knockT = 0.4; p.cool = 1.2;
+      } else if (p.kind === "big" && p.cool <= 0 && d < 9 && los(p.x, p.y, px, py)) {
+        throwCloud(p, Math.atan2(ey, ex), easy ? def.stink / 2 : def.stink);
+        p.cool = 2.5 + R();
+      }
+    }
+    p.z = moving ? Math.abs(Math.sin(p.anim * 7)) * def.hop : 0;
+    const set = ART.poops[p.kind];
+    p.tex = p.flash > 0 ? set.hit : !moving ? set.frames[0] : p.z > def.hop * 0.6 ? set.frames[2] : p.z < def.hop * 0.12 ? set.frames[1] : set.frames[0];
+  }
+
+  function throwCloud(p, a, stinkAmt) {
+    const ux = Math.cos(a), uy = Math.sin(a);
+    sprites.push({ kind: "cloud", x: p.x + ux * 0.5, y: p.y + uy * 0.5, z: 0.3, vx: ux * 3, vy: uy * 3, dist: 0, age: 0, stink: stinkAmt, bright: true, tex: ART.sprites.cloud[0] });
+    tone(180, 110, 0.25, "sawtooth", 0.05);
+  }
+  function updateCloud(c, dt) {
+    c.x += c.vx * dt; c.y += c.vy * dt; c.dist += 3 * dt; c.age += dt;
+    c.tex = ART.sprites.cloud[(c.age * 4 | 0) % 2];
+    if (solid(c.x, c.y) || c.dist >= 10) c.gone = true;
+    else if ((c.x - px) ** 2 + (c.y - py) ** 2 < 0.25) { c.gone = true; addStink(c.stink); sfxSquelch(); }
   }
 
   // Animated things run even behind the title screen
@@ -918,6 +1100,7 @@
     elapsed += dt;
     cooldown = Math.max(0, cooldown - dt);
     recoil = Math.max(0, recoil - dt);
+    splat = Math.max(0, splat - dt * 0.7);
     if (msgT > 0 && (msgT -= dt) <= 0) setMsg("");
 
     let fwd = touchMove.y, str = touchMove.x, turn = 0;
@@ -941,7 +1124,10 @@
     if (trigger && cooldown <= 0) fire();
 
     for (const s of sprites) {
+      if (s.gone) continue;
       if (s.kind === "roll") updateRoll(s, dt);
+      else if (POOP[s.kind]) updatePoop(s, dt);
+      else if (s.kind === "cloud") updateCloud(s, dt);
       else if (FX[s.kind]) {
         s.age += dt;
         if (s.age >= FX[s.kind]) s.gone = true;
@@ -953,13 +1139,16 @@
 
   // ---------- HUD & overlay ----------
   const $ = id => document.getElementById(id);
-  const hud = { msg: $("hud-msg"), rolls: $("hud-rolls") };
+  const hud = { msg: $("hud-msg"), rolls: $("hud-rolls"), stink: $("hud-stink"), poops: $("hud-poops") };
   let lastHud = "";
   function updateHud() {
     if (!ready || !started) return;
-    const key = `${rolls}`;
+    const left = poopsLeft(), key = `${rolls}|${stink}|${left}`;
     if (key === lastHud) return;
     lastHud = key;
+    hud.stink.textContent = `${Math.round(stink)}%`;
+    hud.stink.classList.toggle("low", stink >= 70);
+    hud.poops.textContent = `${left} left`;
     hud.rolls.textContent = rolls;
     hud.rolls.classList.toggle("low", rolls === 0);
   }
@@ -973,6 +1162,12 @@
     $("ov-btn").textContent = btn;
     overlay.hidden = false;
     $("ov-btn").focus({ preventScroll: true });
+  }
+  function end(kind) {
+    over = kind; running = false; trigger = false; keys.clear();
+    if (document.pointerLockElement) document.exitPointerLock();
+    const t = `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}`;
+    if (kind === "lose") showOverlay("Pee-yew!", "Too stinky!", `${POOPS.length - poopsLeft()} of ${POOPS.length} poops cleaned after ${t}. Grab air fresheners and keep moving!`, "Try again");
   }
   function pause() {
     if (!running) return;
@@ -1077,6 +1272,15 @@
     src.buffer = b; f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 0.8; g.gain.value = 0.35;
     src.connect(f).connect(g).connect(ac.destination); src.start();
   }
+  function sfxPop() { tone(380, 900, 0.12, "triangle", 0.12); setTimeout(() => tone(900, 1300, 0.1, "sine", 0.08), 70); }
+  function sfxSquelch() {
+    if (!ac) return;
+    const len = 0.22 * ac.sampleRate | 0, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = b; f.type = "lowpass"; f.frequency.setValueAtTime(900, ac.currentTime); f.frequency.exponentialRampToValueAtTime(150, ac.currentTime + 0.2);
+    g.gain.value = 0.5; src.connect(f).connect(g).connect(ac.destination); src.start();
+  }
   function tone(f0, f1, dur, type, vol) {
     if (!ac) return;
     const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
@@ -1121,11 +1325,16 @@
     get state() {
       const kinds = Object.fromEntries(["roll", "tail", "puff", "small", "big", "cloud", "poof", "flowers", "king", "tp", "fresh", "dog"].map(k => [k, 0]));
       for (const s of sprites) kinds[s.kind] = (kinds[s.kind] || 0) + 1;
-      return { ready, running, over, px, py, angle: Math.atan2(dy, dx), rolls, kinds, msg: hud.msg.textContent,
+      return { ready, running, over, px, py, angle: Math.atan2(dy, dx), rolls, stink, splat, easy, poopsLeft: poopsLeft(), flowers: kinds.flowers, kinds, msg: hud.msg.textContent,
         props: sprites.filter(s => PROPS.some(p => p[0] === s.kind)).length };
     },
     find: kind => sprites.filter(s => s.kind === kind).map(({ x, y, z }) => ({ x, y, z })),
-    set(o) { if ("rolls" in o) rolls = o.rolls; },
+    set(o) { if ("rolls" in o) rolls = o.rolls; if ("stink" in o) stink = o.stink; },
+    place(kind, x, y, o = {}) { if (POOP[kind]) spawnPoop(kind, x, y, !!o.awake); },
+    clear(...kinds) {
+      const k = new Set(kinds.flatMap(k => k === "poops" ? Object.keys(POOP) : [k]));
+      sprites = sprites.filter(s => !k.has(s.kind));
+    },
     hold(on) { hold = on; },
     art() {
       const colours = t => new Set(t.px).size, opaque = t => t.px.reduce((n, c) => n + (c ? 1 : 0), 0);
