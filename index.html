@@ -625,6 +625,24 @@
       }
     }
   }
+  // Pickups: a 4-pack of toilet rolls in plastic wrap, and an air-freshener spray can
+  function drawTP(g, w, h) {
+    for (const [x, y] of [[0.27, 0.62], [0.73, 0.62], [0.27, 0.2], [0.73, 0.2]]) {
+      g.fillStyle = "#e6e4da"; g.fillRect(w * (x - 0.22), h * y, w * 0.44, h * 0.36);
+      g.fillStyle = "#fbfbf6"; g.fillRect(w * (x - 0.22), h * y, w * 0.38, h * 0.34);
+      blob(g, w * (x - 0.03), h * y, w * 0.19, h * 0.07, "#fbfbf6"); blob(g, w * (x - 0.03), h * y, w * 0.06, h * 0.025, "#b98a52");
+    }
+    g.fillStyle = "rgba(160,210,255,.35)"; g.fillRect(0, h * 0.12, w, h * 0.88);   // plastic wrap
+    g.fillStyle = "#2f7dff"; g.fillRect(w * 0.08, h * 0.5, w * 0.84, h * 0.12);
+    g.fillStyle = "#ffffff"; g.fillRect(w * 0.42, h * 0.53, w * 0.16, h * 0.06);
+  }
+  function drawFresh(g, w, h) {
+    g.fillStyle = "#29a3b8"; g.beginPath(); g.roundRect(w * 0.18, h * 0.22, w * 0.64, h * 0.78, w * 0.12); g.fill();
+    g.fillStyle = "#4cc4d6"; g.fillRect(w * 0.26, h * 0.26, w * 0.12, h * 0.7);
+    g.fillStyle = "#e0e4e8"; g.fillRect(w * 0.3, h * 0.08, w * 0.4, h * 0.16);
+    g.fillStyle = "#ffffff"; g.fillRect(w * 0.42, h * 0.02, w * 0.16, h * 0.08);
+    for (const [x, y, c] of [[0.5, 0.5, "#f6c838"], [0.38, 0.62, "#ff7fb0"], [0.62, 0.62, "#ffffff"]]) blob(g, w * x, h * y, w * 0.1, w * 0.1, c);
+  }
   function drawFlowerClump(g, w, h) {
     const r = rng(8);
     for (let n = 0; n < 7; n++) blob(g, w * (0.2 + r() * 0.6), h * (0.7 + r() * 0.25), w * 0.09, h * 0.12, "#3b8a30");
@@ -662,6 +680,8 @@
         cloud: [0, 1].map(i => sprite(0.5, 0.42, (g, w, h) => drawCloud(g, w, h, i))),
         poof: [0, 1, 2].map(i => sprite(0.7, 0.6, (g, w, h) => drawPoof(g, w, h, i))),
         flowers: sprite(0.45, 0.22, drawFlowerClump),
+        tp: sprite(0.36, 0.3, drawTP),
+        fresh: sprite(0.14, 0.32, drawFresh),
       },
       blaster: BLASTER_LEVELS.map(v => shadeCanvas(blaster, v)),
     };
@@ -768,6 +788,9 @@
     over = null;
     sprites = PROPS.map(([kind, x, y]) => ({ kind, x: x + 0.5, y: y + 0.5, z: 0, tex: ART.sprites[kind], solid: SOLID_PROPS[kind] }));
     for (const [kind, x, y] of POOPS) spawnPoop(kind, x + 0.5, y + 0.5);
+    for (const [kind, x, y] of PICKUPS) spawnPickup(kind, x + 0.5, y + 0.5);
+    dog = { kind: "dog", model: "dog", x: START[0], y: START[1] + 1, z: 0, anim: 0, heading: START[2], moving: false, stuck: 0, barkT: 4 };
+    sprites.push(dog);
     setMsg("");
   }
 
@@ -871,10 +894,30 @@
     [0, 0, 0.405, 0.085, 0.085, 0.024, GOLD, 0.7], [0, 0.085, 0.405, 0.016, 0.01, 0.016, RED, 0.8], [0, -0.13, 0.2, 0.2, 0.06, 0.17, RED, 0.15],
     ...[0, 1, 2, 3, 4].map(i => [Math.cos(i * 1.2566) * 0.07, Math.sin(i * 1.2566) * 0.07, 0.44, 0.02, 0.02, 0.026, GOLD, 0.7]),
   ];
+  // The border collie, built each frame so the legs can trot and the tail wag (+y = the way it's facing)
+  const FUR = [34, 32, 34], FUR_W = [240, 238, 232], PINK = [240, 120, 140];
+  function dogParts(s) {
+    const t = s.anim * 11, run = s.moving ? 1 : 0, leg = i => Math.sin(t + i * Math.PI) * 0.06 * run;
+    const wag = Math.sin(s.anim * (s.moving ? 9 : 14)) * 0.09;
+    return [
+      [0, 0, 0.42, 0.14, 0.3, 0.13, FUR, 0.2], [0, 0.18, 0.4, 0.11, 0.12, 0.115, FUR_W, 0.15], [0, 0, 0.33, 0.1, 0.22, 0.06, FUR_W, 0.1],
+      [0, 0.36, 0.6, 0.11, 0.11, 0.1, FUR, 0.2], [0, 0.44, 0.63, 0.035, 0.05, 0.07, FUR_W, 0.1], [0, 0.49, 0.565, 0.045, 0.1, 0.04, FUR_W, 0.1],
+      [0, 0.585, 0.58, 0.022, 0.016, 0.016, BLACK, 0.6], [-0.05, 0.44, 0.645, 0.018, 0.012, 0.018, BLACK, 0.6], [0.05, 0.44, 0.645, 0.018, 0.012, 0.018, BLACK, 0.6],
+      [-0.065, 0.33, 0.71, 0.03, 0.018, 0.045, FUR, 0.1, 0.4], [0.065, 0.33, 0.71, 0.03, 0.018, 0.045, FUR, 0.1, -0.4],
+      [0, 0.5, 0.515, 0.022, 0.03, 0.008, PINK, 0.3],
+      [wag, -0.36, 0.52, 0.04, 0.13, 0.04, FUR, 0.15], [wag * 1.6, -0.48, 0.57, 0.035, 0.05, 0.035, FUR_W, 0.1],
+      ...[[-0.08, 0.2, 0], [0.08, 0.2, 1], [-0.08, -0.2, 1], [0.08, -0.2, 0]].flatMap(([x, y, i]) => [
+        [x, y + leg(i), 0.16 + Math.max(0, leg(i)), 0.032, 0.032, 0.15, FUR, 0.15],
+        [x, y + leg(i) * 1.3, 0.03 + Math.max(0, leg(i)), 0.045, 0.05, 0.03, FUR_W, 0.1],
+      ]),
+    ];
+  }
+  // rad / zc = bounding sphere (in model units) for the screen box
   const MODELS = {
-    small: { scale: 1, parts: BODY, flies: 2 },
-    big: { scale: 1.78, parts: [...BODY, ...BROWS], flies: 3 },
-    king: { scale: 3.55, parts: [...BODY, ...BROWS, ...CROWN], flies: 4 },
+    small: { scale: 1, parts: BODY, flies: 2, rad: 0.3, zc: 0.25 },
+    big: { scale: 1.78, parts: [...BODY, ...BROWS], flies: 3, rad: 0.3, zc: 0.25 },
+    king: { scale: 3.55, parts: [...BODY, ...BROWS, ...CROWN], flies: 4, rad: 0.3, zc: 0.25 },
+    dog: { scale: 1, parts: dogParts, flies: 0, rad: 0.62, zc: 0.4 },
   };
   const SUN3 = (() => { const v = [SUN[0] * 0.67, SUN[1] * 0.67, 0.74], l = Math.hypot(...v); return v.map(c => c / l); })();
   const SHADOW_DX = -SUN3[0] / SUN3[2], SHADOW_DY = -SUN3[1] / SUN3[2];
@@ -882,8 +925,8 @@
   // World-space ellipsoids for this frame: centre, and the three axes divided by the radii
   function modelParts(s) {
     const m = MODELS[s.model], k = m.scale, sq = s.sq || 1, h = 1 / Math.sqrt(sq);
-    const fa = Math.atan2(py - s.y, px - s.x), fx = Math.cos(fa), fy = Math.sin(fa), rx = fy, ry = -fx;
-    const parts = m.parts.map(([x, y, z, a, b, c, col, shine, roll = 0]) => {
+    const fa = s.heading ?? Math.atan2(py - s.y, px - s.x), fx = Math.cos(fa), fy = Math.sin(fa), rx = fy, ry = -fx;
+    const parts = (typeof m.parts === "function" ? m.parts(s) : m.parts).map(([x, y, z, a, b, c, col, shine, roll = 0]) => {
       const cr = Math.cos(roll), sr = Math.sin(roll);
       // local x axis rolled about the forward axis (for the angry brows)
       const ex = [rx * cr, ry * cr, sr], ez = [-rx * sr, -ry * sr, cr], ey = [fx, fy, 0];
@@ -904,7 +947,7 @@
     const m = MODELS[s.model], k = m.scale, sx = s.x - px, sy = s.y - py;
     const invDet = 1 / (plx * dy - dx * ply);
     const tX = invDet * (dy * sx - dx * sy), tY = invDet * (-ply * sx + plx * sy);
-    const rad = 0.3 * k + 0.05, zc = s.z + 0.25 * k;     // bounding sphere
+    const rad = m.rad * k + 0.05, zc = s.z + m.zc * k;   // bounding sphere
     if (tY + rad <= 0.2) return;
     const parts = modelParts(s);
     const l = lightAt(s.x, s.y), lit = (l[0] + l[1] + l[2]) / 3;
@@ -1112,7 +1155,48 @@
     king:  { hp: 20, easyHp: 14, speed: 0.8, easySpeed: 0.8, hop: 0.1, hitR: 1.0, stink: 12, contact: 20 },
   };
   const poopsLeft = () => sprites.reduce((n, s) => n + ((s.kind === "small" || s.kind === "big") && !s.gone ? 1 : 0), 0);
-  let kingOut = false;
+  let kingOut = false, dog = null;
+
+  // ---------- Pickups ----------
+  function spawnPickup(kind, x, y) {
+    sprites.push({ kind, x, y, z: 0.05, anim: R() * 6, bright: true, tex: ART.sprites[kind] });
+  }
+  function updatePickup(s, dt) {
+    s.anim += dt; s.z = 0.06 + Math.sin(s.anim * 3) * 0.04;
+    if ((s.x - px) ** 2 + (s.y - py) ** 2 > 0.36) return;
+    if (s.kind === "tp") {
+      rolls += 12; s.gone = true; setMsg("+12 rolls"); tone(660, 990, 0.12, "triangle", 0.12);
+    } else if (stink > 0) {
+      stink = Math.max(0, stink - 30); s.gone = true; setMsg("Fresh! \u221230 stink"); sfxSpray();
+    }
+  }
+
+  // ---------- The dog ----------
+  // Trots after you (behind and a bit to the left), wanders when close, barks at poops
+  function updateDog(g, dt) {
+    g.anim += dt; g.barkT += dt;
+    const lx = -plx / PLANE, ly = -ply / PLANE;
+    const tx = px - dx * 1.8 + lx * 0.8, ty = py - dy * 1.8 + ly * 0.8;
+    const dT = Math.hypot(tx - g.x, ty - g.y), dP = Math.hypot(px - g.x, py - g.y);
+    g.moving = false;
+    if (dT > 0.6) {
+      const v = (dT > 2.5 ? 3.8 : 1.2) * dt, ux = (tx - g.x) / dT, uy = (ty - g.y) / dT;
+      const ox = g.x, oy = g.y;
+      if (canStand(g.x + ux * v, g.y, 0.2) && !blockedBySprite(g.x + ux * v, g.y, g)) g.x += ux * v;
+      if (canStand(g.x, g.y + uy * v, 0.2) && !blockedBySprite(g.x, g.y + uy * v, g)) g.y += uy * v;
+      g.moving = g.x !== ox || g.y !== oy;
+      if (g.moving) g.heading = Math.atan2(g.y - oy, g.x - ox);
+      g.stuck = g.moving ? 0 : g.stuck + dt;
+    } else { g.stuck = 0; g.heading = Math.atan2(py - g.y, px - g.x); }
+    if (g.stuck > 3 || dP > 12) {
+      // Lost: pop back in behind the player
+      for (const [ox, oy] of [[tx, ty], [px - dx, py - dy], [px + lx, py + ly], [px - lx, py - ly], [px + dx, py + dy]])
+        if (canStand(ox, oy, 0.2)) { g.x = ox; g.y = oy; g.stuck = 0; break; }
+    }
+    if (g.barkT >= 4 && sprites.some(p => POOP[p.kind] && !p.gone && (p.x - g.x) ** 2 + (p.y - g.y) ** 2 < 16)) {
+      g.barkT = 0; setMsg("Woof!"); sfxBark();
+    }
+  }
 
   // Once the park is clean, King Poop comes out of the toilet block
   function spawnKing() {
@@ -1244,6 +1328,8 @@
       if (s.kind === "roll") updateRoll(s, dt);
       else if (POOP[s.kind]) updatePoop(s, dt);
       else if (s.kind === "cloud") updateCloud(s, dt);
+      else if (s.kind === "tp" || s.kind === "fresh") updatePickup(s, dt);
+      else if (s.kind === "dog") updateDog(s, dt);
       else if (FX[s.kind]) {
         s.age += dt;
         if (s.age >= FX[s.kind]) s.gone = true;
@@ -1252,6 +1338,10 @@
     }
     if (sprites.some(s => s.gone)) sprites = sprites.filter(s => !s.gone);
     if (!kingOut && !over && poopsLeft() === 0) spawnKing();
+    // Never stuck without rolls: a new pack turns up by the gate
+    if (rolls === 0 && !over && !sprites.some(s => s.kind === "tp")) {
+      spawnPickup("tp", 3.5, 28.5); setMsg("A fresh TP pack appeared by the gate!");
+    }
   }
 
   // ---------- HUD & overlay ----------
@@ -1390,6 +1480,15 @@
     src.buffer = b; f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 0.8; g.gain.value = 0.35;
     src.connect(f).connect(g).connect(ac.destination); src.start();
   }
+  function sfxBark() { tone(520, 300, 0.07, "square", 0.08); setTimeout(() => tone(560, 320, 0.08, "square", 0.08), 120); }
+  function sfxSpray() {
+    if (!ac) return;
+    const len = 0.4 * ac.sampleRate | 0, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.min(1, (len - i) / (len * 0.3));
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = b; f.type = "highpass"; f.frequency.value = 3000; g.gain.value = 0.25;
+    src.connect(f).connect(g).connect(ac.destination); src.start();
+  }
   function sfxPop() { tone(380, 900, 0.12, "triangle", 0.12); setTimeout(() => tone(900, 1300, 0.1, "sine", 0.08), 70); }
   function sfxSquelch() {
     if (!ac) return;
@@ -1445,12 +1544,16 @@
       for (const s of sprites) kinds[s.kind] = (kinds[s.kind] || 0) + 1;
       const k = sprites.find(s => s.kind === "king" && !s.gone);
       return { ready, running, over, px, py, angle: Math.atan2(dy, dx), rolls, stink, splat, easy, poopsLeft: poopsLeft(), flowers: kinds.flowers, kinds, msg: hud.msg.textContent,
-        king: k ? { hp: k.hp, x: k.x, y: k.y } : null,
+        king: k ? { hp: k.hp, x: k.x, y: k.y } : null, dog: dog && { x: dog.x, y: dog.y }, barkT: dog && dog.barkT,
         props: sprites.filter(s => PROPS.some(p => p[0] === s.kind)).length };
     },
     find: kind => sprites.filter(s => s.kind === kind).map(({ x, y, z }) => ({ x, y, z })),
     set(o) { if ("rolls" in o) rolls = o.rolls; if ("stink" in o) stink = o.stink; },
-    place(kind, x, y, o = {}) { if (POOP[kind]) spawnPoop(kind, x, y, !!o.awake); },
+    place(kind, x, y, o = {}) {
+      if (POOP[kind]) spawnPoop(kind, x, y, !!o.awake);
+      else if (kind === "tp" || kind === "fresh") spawnPickup(kind, x, y);
+      else if (kind === "dog") { dog.x = x; dog.y = y; }
+    },
     clear(...kinds) {
       const k = new Set(kinds.flatMap(k => k === "poops" ? Object.keys(POOP) : [k]));
       sprites = sprites.filter(s => !k.has(s.kind));
