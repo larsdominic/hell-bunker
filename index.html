@@ -724,9 +724,10 @@
   }
 
   // A roll of toilet paper flying side-on; the perforation seam moves round as it spins
+  const rrect = (g, x, y, w, h, r) => g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h);   // no roundRect before Safari 16
   function drawRoll(g, w, h, i) {
-    g.fillStyle = "#dcdcd2"; g.beginPath(); g.roundRect(w * 0.08, h * 0.14, w * 0.86, h * 0.8, h * 0.18); g.fill();
-    g.fillStyle = "#fbfbf6"; g.beginPath(); g.roundRect(w * 0.08, h * 0.12, w * 0.86, h * 0.66, h * 0.18); g.fill();
+    g.fillStyle = "#dcdcd2"; g.beginPath(); rrect(g, w * 0.08, h * 0.14, w * 0.86, h * 0.8, h * 0.18); g.fill();
+    g.fillStyle = "#fbfbf6"; g.beginPath(); rrect(g, w * 0.08, h * 0.12, w * 0.86, h * 0.66, h * 0.18); g.fill();
     blob(g, w * 0.12, h * 0.52, w * 0.08, h * 0.4, "#efe9da");
     blob(g, w * 0.12, h * 0.52, w * 0.04, h * 0.17, "#b98a52");
     g.fillStyle = "#c9c9be";
@@ -807,7 +808,7 @@
     g.fillStyle = "#ffffff"; g.fillRect(w * 0.42, h * 0.53, w * 0.16, h * 0.06);
   }
   function drawFresh(g, w, h) {
-    g.fillStyle = "#29a3b8"; g.beginPath(); g.roundRect(w * 0.18, h * 0.22, w * 0.64, h * 0.78, w * 0.12); g.fill();
+    g.fillStyle = "#29a3b8"; g.beginPath(); rrect(g, w * 0.18, h * 0.22, w * 0.64, h * 0.78, w * 0.12); g.fill();
     g.fillStyle = "#4cc4d6"; g.fillRect(w * 0.26, h * 0.26, w * 0.12, h * 0.7);
     g.fillStyle = "#e0e4e8"; g.fillRect(w * 0.3, h * 0.08, w * 0.4, h * 0.16);
     g.fillStyle = "#ffffff"; g.fillRect(w * 0.42, h * 0.02, w * 0.16, h * 0.08);
@@ -1113,6 +1114,7 @@
     return parts;
   }
 
+  const MB = { O: new Float64Array(256), D: new Float64Array(192), box: new Float64Array(256), act: new Int32Array(64) };   // reused per model
   function renderModel(s) {
     const m = MODELS[s.model], k = m.scale * (s.grow ?? 1), sx = s.x - px, sy = s.y - py;
     const invDet = 1 / (plx * dy - dx * ply);
@@ -1133,7 +1135,7 @@
     // The ray origin is the eye for every pixel, so each part's origin terms are per frame; the ray direction's
     // x/y share is per column and its z share per row
     // ...and each part only needs testing inside its own screen box (from its bounding sphere)
-    const O = new Float64Array(n * 4), D = new Float64Array(n * 3), box = new Float64Array(n * 4), act = new Int32Array(n);
+    const O = MB.O, D = MB.D, box = MB.box, act = MB.act;
     parts.forEach((p, i) => {
       const ox = px - p.cx, oy = py - p.cy, oz = EYE - p.cz, u = p.u, v = p.v, w = p.w;
       const o0 = ox * u[0] + oy * u[1] + oz * u[2], o1 = ox * v[0] + oy * v[1] + oz * v[2], o2 = ox * w[0] + oy * w[1] + oz * w[2];
@@ -1145,7 +1147,9 @@
       box[i * 4] = c - sp; box[i * 4 + 1] = c + sp;
       box[i * 4 + 2] = H / 2 - (p.cz + r - EYE) * VS / tn; box[i * 4 + 3] = H / 2 - (p.cz - r - EYE) * VS / tn;
     });
-    for (let x = x0; x < x1; x++) {
+    // Close up a model can fill the screen: then trace every other pixel and fill 2x2 blocks
+    const st = (x1 - x0) * (y1 - y0) > 9000 ? 2 : 1;
+    for (let x = x0; x < x1; x += st) {
       const cam = 2 * x / W - 1, rdx = dx + plx * cam, rdy = dy + ply * cam, zlim = zbuf[x];
       let na = 0;
       for (let i = 0; i < n; i++) {
@@ -1155,7 +1159,7 @@
         D[i * 3] = rdx * p.u[0] + rdy * p.u[1]; D[i * 3 + 1] = rdx * p.v[0] + rdy * p.v[1]; D[i * 3 + 2] = rdx * p.w[0] + rdy * p.w[1];
       }
       if (!na) continue;
-      for (let y = y0; y < y1; y++) {
+      for (let y = y0; y < y1; y += st) {
         const rdz = (H / 2 - y) / VS;
         let best = zlim, hi = -1, h0 = 0, h1 = 0, h2 = 0;
         for (let j = 0; j < na; j++) {
@@ -1187,7 +1191,13 @@
         let r = c[0] * kd + ks + HAZE[0] * hz2, g = c[1] * kd + ks + HAZE[1] * hz2, b = c[2] * kd + ks + HAZE[2] * hz2;
         if (flash) { r += (255 - r) * flash; g += (255 - g) * flash; b += (255 - b) * flash; }
         if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
-        buf[y * W + x] = 0xFF000000 | (b << 16) | (g << 8) | r;
+        const px32 = 0xFF000000 | (b << 16) | (g << 8) | r;
+        buf[y * W + x] = px32;
+        if (st > 1) {
+          const y2 = y + 1 < y1, x2 = x + 1 < x1 && best < zbuf[x + 1];
+          if (y2) buf[(y + 1) * W + x] = px32;
+          if (x2) { buf[y * W + x + 1] = px32; if (y2) buf[(y + 1) * W + x + 1] = px32; }
+        }
       }
     }
   }
@@ -1252,7 +1262,7 @@
     ctx.fillStyle = "rgba(60,120,50,.8)";
     for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (grid[y * MW + x]) ctx.fillRect(ox + x * s, oy + y * s, s, s);
     for (const e of sprites) {
-      const c = e.kind === "small" || e.kind === "big" ? "#7a4a1e" : e.kind === "king" ? "#ffd23a" : e.kind === "dog" ? "#ffffff" : null;
+      const c = e.kind === "small" || e.kind === "big" ? "#7a4a1e" : e.kind === "king" ? "#ffd23a" : e.kind === "dog" ? "#ffffff" : e.kind === "tp" ? "#e8f4ff" : null;
       if (c && !e.gone) { ctx.fillStyle = c; ctx.fillRect(ox + e.x * s - 1, oy + e.y * s - 1, e.kind === "king" ? 4 : 3, e.kind === "king" ? 4 : 3); }
     }
     ctx.fillStyle = "#2f7dff"; ctx.fillRect(ox + px * s - 2, oy + py * s - 2, 4, 4);
@@ -1302,7 +1312,10 @@
   function effect(kind, x, y, z) { sprites.push({ kind, x, y, z, age: 0, tex: ART.sprites[kind][0] }); }
 
   function fire() {
-    if (rolls <= 0) { setMsg("Out of rolls! Find a TP pack."); tone(160, 120, 0.05, "square", 0.05); cooldown = 0.35; return; }
+    if (rolls <= 0) {
+      setMsg(sprites.some(s => s.safety) ? "Out of rolls! A TP pack is waiting by the gate." : "Out of rolls! Find a TP pack.");
+      tone(160, 120, 0.05, "square", 0.05); cooldown = 0.35; return;
+    }
     rolls--; cooldown = 0.35; recoil = 0.12; sfxThrow();
     const sx = px + dx * 0.4, sy = py + dy * 0.4;
     if (solid(sx, sy)) { effect("puff", px + dx * 0.2, py + dy * 0.2, 0.3); return; }
@@ -1368,7 +1381,8 @@
         if (canStand(ox, oy, 0.2)) { g.x = ox; g.y = oy; g.stuck = 0; break; }
     }
     if (g.barkT >= 4 && sprites.some(p => POOP[p.kind] && !p.gone && (p.x - g.x) ** 2 + (p.y - g.y) ** 2 < 16)) {
-      g.barkT = 0; setMsg("Woof!"); sfxBark();
+      g.barkT = 0; sfxBark();
+      if (msgT < 1) setMsg("Woof!");   // don't bury a fresh message (King coming, TP pack by the gate...)
     }
   }
 
@@ -1515,7 +1529,7 @@
     if (!kingOut && !over && poopsLeft() === 0) spawnKing();
     // Never stuck without rolls: a new pack turns up by the gate
     if (rolls === 0 && !over && !sprites.some(s => s.kind === "tp")) {
-      spawnPickup("tp", 3.5, 28.5); setMsg("A fresh TP pack appeared by the gate!");
+      spawnPickup("tp", 3.5, 28.5); sprites[sprites.length - 1].safety = true; setMsg("A fresh TP pack appeared by the gate!");
     }
   }
 
@@ -1576,9 +1590,11 @@
   function setMsg(t) { hud.msg.textContent = t; msgT = t ? 2.5 : 0; }
 
   const overlay = $("overlay");
+  let overlayAt = 0;
   function showOverlay(eyebrow, title, text, btn, titleScreen = false) {
     document.querySelector(".pick").hidden = document.querySelector(".easy").hidden = !titleScreen;
     $("touch-ui").hidden = true;
+    overlayAt = performance.now();
     $("ov-eyebrow").textContent = eyebrow;
     $("ov-title").textContent = title;
     $("ov-text").textContent = text;
@@ -1590,8 +1606,8 @@
     over = kind; running = false; trigger = false; keys.clear(); setMsg("");
     if (document.pointerLockElement) document.exitPointerLock();
     const t = `${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}`;
-    if (kind === "win") showOverlay("Hooray!", "Park clean!", `All ${POOPS.length} poops and King Poop cleared in ${t}, with ${Math.round(stink)}% stink.`, "Play again");
-    if (kind === "lose") showOverlay("Pee-yew!", "Too stinky!", `${Math.max(0, POOPS.length - poopsLeft())} of ${POOPS.length} poops cleaned after ${t}. Grab air fresheners and keep moving!`, "Try again");
+    if (kind === "win") showOverlay("Hooray!", "Park clean!", `All ${POOPS.length} poops and King Poop cleared in ${t}, with ${Math.round(stink)}% stink.`, "Play again", true);
+    if (kind === "lose") showOverlay("Pee-yew!", "Too stinky!", `${Math.max(0, POOPS.length - poopsLeft())} of ${POOPS.length} poops cleaned after ${t}. Grab air fresheners and keep moving!`, "Try again", true);
   }
   function pause() {
     if (!running) return;
@@ -1716,6 +1732,8 @@
     try { const p = cv.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   }
   addEventListener("keydown", e => {
+    // A held or mashed key (Space for auto-throw) must not click straight through the win / lose / pause screen
+    if (!running && phase === "play" && (e.repeat || performance.now() - overlayAt < 600) && (e.code === "Space" || e.code === "Enter")) { e.preventDefault(); return; }
     if (phase === "intro" && (e.code === "Space" || e.code === "ArrowUp")) { e.preventDefault(); introJump(); return; }
     if (running && ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) e.preventDefault();
     if (e.code === "KeyM") showMap = !showMap;

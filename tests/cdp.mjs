@@ -7,7 +7,7 @@ const VK = { Space: 32, KeyW: 87, KeyA: 65, KeyS: 83, KeyD: 68, KeyM: 77, KeyP: 
   ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39, Escape: 27 };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-export async function withPage({ url, w = 640, h = 400, touch = false }, fn) {
+export async function withPage({ url, w = 640, h = 400, touch = false, init = "" }, fn) {
   const port = 9300 + Math.floor(Math.random() * 600), dir = `/tmp/pr3d-cdp-${port}`;
   const chrome = spawn(CHROME, ["--headless=new", `--remote-debugging-port=${port}`, `--window-size=${w},${h}`,
     "--hide-scrollbars", "--autoplay-policy=no-user-gesture-required", "--allow-file-access-from-files",
@@ -39,6 +39,7 @@ export async function withPage({ url, w = 640, h = 400, touch = false }, fn) {
       await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
       await send("Emulation.setEmulatedMedia", { features: [{ name: "pointer", value: "coarse" }, { name: "hover", value: "none" }] });
     }
+    if (init) await send("Page.addScriptToEvaluateOnNewDocument", { source: init });   // e.g. pretend to be an older browser
     await send("Page.navigate", { url });
     const t = {
       sleep, send, logs, w, h, touch,
