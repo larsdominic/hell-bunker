@@ -552,8 +552,60 @@
     g.beginPath(); g.moveTo(w * 0.3, h * 0.3); g.quadraticCurveTo(w * 0.6, h * 0.44, w * 0.78, h * 0.94); g.stroke();
   }
 
+  // A roll of toilet paper flying side-on; the perforation seam moves round as it spins
+  function drawRoll(g, w, h, i) {
+    g.fillStyle = "#dcdcd2"; g.beginPath(); g.roundRect(w * 0.08, h * 0.14, w * 0.86, h * 0.8, h * 0.18); g.fill();
+    g.fillStyle = "#fbfbf6"; g.beginPath(); g.roundRect(w * 0.08, h * 0.12, w * 0.86, h * 0.66, h * 0.18); g.fill();
+    blob(g, w * 0.12, h * 0.52, w * 0.08, h * 0.4, "#efe9da");
+    blob(g, w * 0.12, h * 0.52, w * 0.04, h * 0.17, "#b98a52");
+    g.fillStyle = "#c9c9be";
+    const sx = w * (0.26 + (i / 4) * 0.62);
+    for (let y = h * 0.16; y < h * 0.9; y += 4) g.fillRect(sx, y, 2, 2);
+  }
+  function drawTail(g, w, h, i) {
+    const k = 1 - i * 0.3;
+    g.fillStyle = "#fbfbf6"; g.fillRect(w * (1 - k) / 2, h * (1 - k) / 2, w * k, h * k);
+    g.fillStyle = "#d6d6cc"; for (let x = w * (1 - k) / 2 + 3; x < w * (1 + k) / 2; x += 5) g.fillRect(x, h * 0.45, 1, 1);
+  }
+  function drawPuff(g, w, h, i) {
+    const r = rng(11);
+    for (let n = 0; n < 16 - i * 4; n++) {
+      const a = r() * Math.PI * 2, d = (0.15 + r() * 0.25) * (1 + i * 0.6) * w;
+      g.fillStyle = pick(r, ["#ffffff", "#f3f1e8", "#e4e2d8"]);
+      g.save(); g.translate(w / 2 + Math.cos(a) * d * 0.9, h / 2 + Math.sin(a) * d * 0.7); g.rotate(r() * 3);
+      g.fillRect(-4, -2.5, 8, 5); g.restore();
+    }
+  }
+  // The toy blaster at the bottom of the screen, built at screen scale (G pixels per 640-wide pixel)
+  function drawBlaster(G) {
+    const c = canvas(Math.round(200 * G), Math.round(140 * G)), g = c.getContext("2d");
+    g.scale(G, G);
+    g.fillStyle = "#2f6fd0"; g.beginPath(); g.moveTo(22, 140); g.lineTo(178, 140); g.lineTo(152, 74); g.lineTo(48, 74); g.fill();
+    g.fillStyle = "#4a8ae6"; g.beginPath(); g.moveTo(48, 74); g.lineTo(152, 74); g.lineTo(158, 90); g.lineTo(42, 90); g.fill();
+    g.fillStyle = "#f08a24"; g.beginPath(); g.moveTo(66, 92); g.lineTo(134, 92); g.lineTo(116, 18); g.lineTo(84, 18); g.fill();
+    g.fillStyle = "#ffb04a"; g.beginPath(); g.moveTo(66, 92); g.lineTo(84, 92); g.lineTo(92, 18); g.lineTo(84, 18); g.fill();
+    g.fillStyle = "#ffd23a"; g.fillRect(74, 52, 52, 7);
+    blob(g, 100, 18, 17, 6.5, "#d06a14"); blob(g, 100, 18, 11, 4, "#5a2a08");
+    // Spare roll in the hopper on the left, so it reads as a TP blaster
+    g.fillStyle = "#e6e4da"; g.fillRect(14, 52, 40, 54);
+    g.fillStyle = "#fbfbf6"; g.fillRect(14, 50, 34, 54);
+    blob(g, 34, 50, 20, 7, "#fbfbf6"); blob(g, 34, 50, 7, 3, "#b98a52");
+    g.fillStyle = "#c9c9be"; for (let y = 60; y < 104; y += 5) g.fillRect(40, y, 2, 2);
+    g.fillStyle = "#1f4fa0"; g.fillRect(150, 104, 18, 36);
+    return c;
+  }
+  function shadeCanvas(src, v) {
+    const c = canvas(src.width, src.height), g = c.getContext("2d");
+    g.drawImage(src, 0, 0);
+    const id = g.getImageData(0, 0, c.width, c.height), d = id.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] * v); d[i + 1] = Math.min(255, d[i + 1] * v); d[i + 2] = Math.min(255, d[i + 2] * v); }
+    g.putImageData(id, 0, 0);
+    return c;
+  }
+  const BLASTER_LEVELS = [0.6, 0.7, 0.8, 0.9, 1];
+
   function buildArt() {
-    const r = rng(42);
+    const r = rng(42), blaster = drawBlaster(W / 640);
     const tex = (w, h, fn) => { const c = canvas(w, h); fn(c.getContext("2d")); return pixels(c); };
     return {
       walls: {
@@ -573,7 +625,11 @@
         bin: sprite(0.4, 0.6, drawBin),
         swings: sprite(1.3, 1.3, drawSwings),
         slide: sprite(1.3, 1.2, drawSlide),
+        roll: [0, 1, 2, 3].map(i => sprite(0.26, 0.22, (g, w, h) => drawRoll(g, w, h, i))),
+        tail: [0, 1, 2].map(i => sprite(0.1, 0.035, (g, w, h) => drawTail(g, w, h, i))),
+        puff: [0, 1, 2].map(i => sprite(0.5, 0.4, (g, w, h) => drawPuff(g, w, h, i))),
       },
+      blaster: BLASTER_LEVELS.map(v => shadeCanvas(blaster, v)),
     };
   }
   const SOLID_PROPS = { tree: true, bench: true, bin: true, swings: true, slide: true };
@@ -666,13 +722,14 @@
 
   // ---------- Game state ----------
   let px, py, dx, dy, plx, ply, sprites = [];
-  let bob, moveAmt, cooldown, msgT, elapsed, clock = 0;
-  let running = false, started = false, over = null, showMap = true, trigger = false;
+  let rolls, recoil, bob, moveAmt, cooldown, msgT, elapsed, clock = 0;
+  let running = false, started = false, over = null, showMap = true, trigger = false, hold = false;
 
   function view(x, y, a) { px = x; py = y; dx = Math.cos(a); dy = Math.sin(a); plx = -dy * PLANE; ply = dx * PLANE; }
   function init() {
     view(...START);
-    bob = moveAmt = cooldown = msgT = elapsed = 0;
+    rolls = 30;
+    recoil = bob = moveAmt = cooldown = msgT = elapsed = 0;
     over = null;
     sprites = PROPS.map(([kind, x, y]) => ({ kind, x: x + 0.5, y: y + 0.5, z: 0, tex: ART.sprites[kind], solid: SOLID_PROPS[kind] }));
     setMsg("");
@@ -808,12 +865,44 @@
     renderFlats();
     renderSprites();
     ctx.putImageData(frameImg, 0, 0);
+    if (started) drawBlasterHud();
     if (showMap && started) drawMinimap();
+  }
+
+  function drawBlasterHud() {
+    const G = W / 640, bx = Math.cos(bob) * 7 * moveAmt * G, by = Math.abs(Math.sin(bob)) * 7 * moveAmt * G;
+    const l = lightAt(px, py), v = (l[0] + l[1] + l[2]) / 3;
+    let lv = 0;
+    while (lv < BLASTER_LEVELS.length - 1 && BLASTER_LEVELS[lv + 1] <= v + 0.05) lv++;
+    const img = ART.blaster[lv], kick = recoil > 0 ? recoil / 0.12 * 12 * G : 0;
+    ctx.drawImage(img, W / 2 - img.width / 2 + bx + 20 * G, H - img.height + by + kick);
   }
 
   // ---------- Gameplay ----------
   const canStand = (x, y, r) => !blocked(x - r, y - r) && !blocked(x + r, y - r) && !blocked(x - r, y + r) && !blocked(x + r, y + r);
   const blockedBySprite = (x, y, self) => sprites.some(s => s !== self && s.solid && (s.x - x) ** 2 + (s.y - y) ** 2 < 0.25);
+
+  // Short-lived effects: frames over their lifetime (they age in update, so pausing freezes them)
+  const FX = { tail: 0.4, puff: 0.35 };
+  function effect(kind, x, y, z) { sprites.push({ kind, x, y, z, age: 0, tex: ART.sprites[kind][0] }); }
+
+  function fire() {
+    if (rolls <= 0) { setMsg("Out of rolls! Find a TP pack."); tone(160, 120, 0.05, "square", 0.05); cooldown = 0.35; return; }
+    rolls--; cooldown = 0.35; recoil = 0.12; sfxThrow();
+    const sx = px + dx * 0.4, sy = py + dy * 0.4;
+    if (solid(sx, sy)) { effect("puff", px + dx * 0.2, py + dy * 0.2, 0.3); return; }
+    // Not drawn for the first half unit: right in front of the eye it would fill the screen
+    sprites.push({ kind: "roll", x: sx, y: sy, z: 0.42, vx: dx * 9, vy: dy * 9, dist: 0, age: 0, tailT: 0, tex: null });
+  }
+
+  function updateRoll(s, dt) {
+    const ox = s.x, oy = s.y;
+    s.x += s.vx * dt; s.y += s.vy * dt; s.dist += 9 * dt; s.age += dt;
+    s.tex = s.dist < 0.5 ? null : ART.sprites.roll[(s.age * 24 | 0) % 4];
+    if ((s.tailT += dt) >= 0.03 && s.dist > 0.8) { s.tailT = 0; effect("tail", ox, oy, s.z + 0.08); }
+    if (solid(s.x, s.y)) { s.gone = true; effect("puff", ox, oy, s.z - 0.1); }
+    else if (s.dist >= 14) { s.gone = true; effect("puff", s.x, s.y, s.z - 0.1); }
+  }
 
   // Animated things run even behind the title screen
   const WATER_CELLS = [];
@@ -828,6 +917,7 @@
   function update(dt) {
     elapsed += dt;
     cooldown = Math.max(0, cooldown - dt);
+    recoil = Math.max(0, recoil - dt);
     if (msgT > 0 && (msgT -= dt) <= 0) setMsg("");
 
     let fwd = touchMove.y, str = touchMove.x, turn = 0;
@@ -847,12 +937,32 @@
     if (canStand(px, py + mvy, 0.22) && !blockedBySprite(px, py + mvy)) py += mvy;
     moveAmt += ((len > 0.1 ? 1 : 0) - moveAmt) * Math.min(1, dt * 8);
     if (len > 0.1) bob += dt * 9;
+
+    if (trigger && cooldown <= 0) fire();
+
+    for (const s of sprites) {
+      if (s.kind === "roll") updateRoll(s, dt);
+      else if (FX[s.kind]) {
+        s.age += dt;
+        if (s.age >= FX[s.kind]) s.gone = true;
+        else s.tex = ART.sprites[s.kind][(s.age / FX[s.kind] * 3) | 0];
+      }
+    }
+    if (sprites.some(s => s.gone)) sprites = sprites.filter(s => !s.gone);
   }
 
   // ---------- HUD & overlay ----------
   const $ = id => document.getElementById(id);
-  const hud = { msg: $("hud-msg") };
-  function updateHud() {}
+  const hud = { msg: $("hud-msg"), rolls: $("hud-rolls") };
+  let lastHud = "";
+  function updateHud() {
+    if (!ready || !started) return;
+    const key = `${rolls}`;
+    if (key === lastHud) return;
+    lastHud = key;
+    hud.rolls.textContent = rolls;
+    hud.rolls.classList.toggle("low", rolls === 0);
+  }
   function setMsg(t) { hud.msg.textContent = t; msgT = t ? 2.5 : 0; }
 
   const overlay = $("overlay");
@@ -959,6 +1069,14 @@
     if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } }
     if (ac.state === "suspended") ac.resume();
   }
+  function sfxThrow() {
+    if (!ac) return;
+    const len = 0.16 * ac.sampleRate | 0, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / len);
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = b; f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 0.8; g.gain.value = 0.35;
+    src.connect(f).connect(g).connect(ac.destination); src.start();
+  }
   function tone(f0, f1, dur, type, vol) {
     if (!ac) return;
     const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
@@ -987,7 +1105,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (ready) {
+    if (ready && !hold) {
       if (running) update(dt);
       else if (!started) rotate(dt * 0.12); // slow pan behind the title screen
       animate(dt);
@@ -1000,7 +1118,15 @@
 
   // Hooks for the automated checks in tests/
   window.__pr3d = {
-    get state() { return { ready, running, over, px, py, angle: Math.atan2(dy, dx), props: sprites.filter(s => PROPS.some(p => p[0] === s.kind)).length }; },
+    get state() {
+      const kinds = Object.fromEntries(["roll", "tail", "puff", "small", "big", "cloud", "poof", "flowers", "king", "tp", "fresh", "dog"].map(k => [k, 0]));
+      for (const s of sprites) kinds[s.kind] = (kinds[s.kind] || 0) + 1;
+      return { ready, running, over, px, py, angle: Math.atan2(dy, dx), rolls, kinds, msg: hud.msg.textContent,
+        props: sprites.filter(s => PROPS.some(p => p[0] === s.kind)).length };
+    },
+    find: kind => sprites.filter(s => s.kind === kind).map(({ x, y, z }) => ({ x, y, z })),
+    set(o) { if ("rolls" in o) rolls = o.rolls; },
+    hold(on) { hold = on; },
     art() {
       const colours = t => new Set(t.px).size, opaque = t => t.px.reduce((n, c) => n + (c ? 1 : 0), 0);
       const flats = {};
@@ -1008,7 +1134,7 @@
       return {
         walls: Object.fromEntries(Object.entries(ART.walls).map(([k, t]) => [k, [t.w, t.h, colours(t)]])),
         flats,
-        sprites: Object.fromEntries(Object.entries(ART.sprites).map(([k, t]) => [k, [t.w, t.h, opaque(t)]])),
+        sprites: Object.fromEntries(Object.entries(ART.sprites).map(([k, v]) => { const t = [].concat(v)[0]; return [k, [t.w, t.h, opaque(t)]]; })),
       };
     },
     view,
