@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hell Bunker art build</title>
+<!--
+  Packs the Freedoom art the game uses into one JSON blob.
+  Served from the root of a Freedoom checkout (see build-art.sh); writes the JSON into #out.
+  Walls are composed from patches per lumps/textures/textures.cfg (parsed by build-art.sh into tex.json);
+  sprite offsets (left, top) come from the [sprites] section of buildcfg.txt (offs.json).
+-->
+<pre id="out"></pre>
+<script>
+const WALLS = ["STARTAN2", "BIGDOOR2", "BRICK6", "BRICKLIT", "TEKWALL1", "COMPSTA2", "TEKWALL4",
+  "BIGBRIK2", "STONE3", "CRATE1", "BRICK9", "BSTONE3", "BRNPOIS", "SUPPORT3"];
+const FLATS = ["floor0_6", "flat19", "flat17", "floor4_8", "ceil5_1", "tlite6_4", "flat5_4", "ceil3_5",
+  "floor5_1", "mflr8_3", "floor7_2", "ceil5_2", "tlite6_5", "lava1", "lava2", "lava3", "lava4"];
+const SPRITES = ["trooa1", "troob1", "trooc1", "trood1", "trooe1", "troof1", "troog1", "trooh1", "troom0",
+  "bal1a0", "bal1b0", "bal1c0", "bal1d0", "bal1e0", "puffa0", "puffb0", "puffc0", "puffd0",
+  "shtga0", "shtgb0", "shtgc0", "shtgd0", "shtfa0", "shtfb0",
+  "bar1a0", "bar1b0", "tlmpa0", "tlmpb0", "tlmpc0", "tlmpd0", "treda0", "tredb0", "tredc0", "tredd0",
+  "media0", "sboxa0"];
+
+const load = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => fail(src); i.src = src; });
+const b64 = buf => { let s = ""; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); };
+(async () => {
+  const tex = await (await fetch("tex.json")).json(), offs = await (await fetch("offs.json")).json();
+  const out = { walls: {}, flats: {}, sprites: {} };
+  for (const n of WALLS) {
+    const [w, h, patches] = tex[n], c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    for (const [p, x, y] of patches) g.drawImage(await load(`patches/${p}.png`), x, y);
+    out.walls[n] = c.toDataURL("image/png");
+  }
+  for (const n of FLATS) out.flats[n] = "data:image/png;base64," + b64(await (await fetch(`flats/${n}.png`)).arrayBuffer());
+  for (const n of SPRITES) {
+    const buf = await (await fetch(`sprites/${n}.png`)).arrayBuffer();
+    out.sprites[n] = ["data:image/png;base64," + b64(buf), ...offs[n]];
+  }
+  document.getElementById("out").textContent = JSON.stringify(out);
+  document.title = "done";
+})().catch(e => { document.getElementById("out").textContent = "ERROR " + e; });
+</script>
